@@ -1,0 +1,304 @@
+from typing import List, Tuple, Any, Optional
+import logging
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.retrievers import BaseRetriever
+# Simplified implementation that works with current langchain version
+# We'll implement history-aware retrieval manually
+from code_chatbot.reranker import Reranker
+from code_chatbot.retriever_wrapper import build_enhanced_retriever
+import os
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class ChatEngine:
+    def __init__(
+        self, 
+        retriever: BaseRetriever, 
+        model_name: str = "gpt-4o", 
+        provider: str = "openai", 
+        api_key: str = None,
+        repo_name: Optional[str] = None,
+        use_agent: bool = True,
+        use_multi_query: bool = False,
+        use_reranking: bool = True,
+        repo_files: Optional[List[str]] = None,
+        repo_dir: str = ".",  # New Argument
+    ):
+        self.base_retriever = retriever
+        self.model_name = model_name
+        self.provider = provider
+        self.api_key = api_key
+        self.repo_name = repo_name or "codebase"
+        self.use_agent = use_agent
+        self.use_multi_query = use_multi_query
+        self.use_reranking = use_reranking
+        self.repo_files = repo_files
+        self.repo_dir = repo_dir
+        
+        # Initialize LLM
+        self.llm = self._get_llm()
+        
+        # Initialize conversation history
+        self.chat_history = []
+        
+        # Build enhanced vector retriever 
+        self.vector_retriever = build_enhanced_retriever(
+            base_retriever=retriever,
+            llm=self.llm if use_multi_query else None, # Only for query expansion
+            use_multi_query=use_multi_query,
+            use_reranking=use_reranking,
+        )
+        
+        # Initialize LLM Retriever if files are available
+        self.llm_retriever = None
+        if self.repo_files:
+            try:
+                from code_chatbot.llm_retriever import LLMRetriever
+                from langchain.retrievers import EnsembleRetriever
+                
+                logger.info(f"Initializing LLMRetriever with {len(self.repo_files)} files.")
+                self.llm_retriever = LLMRetriever(
+                    llm=self.llm,
+                    repo_files=self.repo_files,
+                    top_k=3
+                )
+                
+                # Combine retrievers
+                self.retriever = EnsembleRetriever(
+                    retrievers=[self.vector_retriever, self.llm_retriever],
+                    weights=[0.6, 0.4]
+                )
+            except ImportError as e:
+                logger.warning(f"Could not load EnsembleRetriever or LLMRetriever: {e}")
+                self.retriever = self.vector_retriever
+        else:
+            self.retriever = self.vector_retriever 
+            
+        # Initialize Agent Graph if enabled
+        self.agent_executor = None
+        self.code_analyzer = None
+        if self.use_agent:
+            try:
+                from code_chatbot.agent_workflow import create_agent_graph
+                from code_chatbot.ast_analysis import EnhancedCodeAnalyzer
+                import os
+                
+                logger.info(f"Building Agentic Workflow Graph for {self.repo_dir}...")
+                
+                # Try to load code analyzer from saved graph
+                graph_path = os.path.join(self.repo_dir, "ast_graph.graphml") if self.repo_dir else None
+                if graph_path and os.path.exists(graph_path):
+                    try:
+                        import networkx as nx
+                        self.code_analyzer = EnhancedCodeAnalyzer()
+                        self.code_analyzer.graph = nx.read_graphml(graph_path)
+                        logger.info(f"Loaded code analyzer with {self.code_analyzer.graph.number_of_nodes()} nodes")
+                    except Exception as e:
+                        logger.warning(f"Failed to load code analyzer: {e}")
+                
+                self.agent_executor = create_agent_graph(
+                    self.llm, self.retriever, self.repo_name, 
+                    self.repo_dir, self.provider, self.code_analyzer
+                )
+            except Exception as e:
+                logger.error(f"Failed to build Agent Graph: {e}")
+                self.use_agent = False
+
+    def _get_llm(self):
+        """Initialize the LLM based on provider (only Groq and Gemini supported)."""
+        api_key = self.api_key or os.getenv(f"{self.provider.upper()}_API_KEY")
+        
+        if self.provider == "gemini":
+            if not api_key:
+                if not os.getenv("GOOGLE_API_KEY"):
+                    raise ValueError("Google API Key is required for Gemini")
+            
+            return ChatGoogleGenerativeAI(
+                model=self.model_name or "gemini-2.5-flash",
+                google_api_key=api_key,
+                temperature=0.2, # Low temp for agents
+                convert_system_message_to_human=True
+            )
+        elif self.provider == "groq":
+            if not api_key:
+                if not os.getenv("GROQ_API_KEY"):
+                    raise ValueError("Groq API Key is required")
+            
+            return ChatGroq(
+                model=self.model_name or "llama-3.3-70b-versatile", 
+                groq_api_key=api_key,
+                temperature=0.2
+            )
+        else:
+            raise ValueError(f"Provider {self.provider} not supported. Only 'groq' and 'gemini' are supported.")
+
+
+    def _build_rag_chain(self):
+        """Builds a simplified RAG chain with history-aware retrieval."""
+        # For compatibility, we'll use a simpler approach that works with current langchain
+        # The history-aware retriever will be implemented in the chat method
+        return None  # We'll handle retrieval manually in chat()
+
+    def _contextualize_query(self, question: str, history: List) -> str:
+        """Contextualize query based on chat history."""
+        if not history:
+            return question
+        
+        # Build context from history
+        history_text = ""
+        for i in range(0, len(history), 2):
+            if i < len(history) and isinstance(history[i], HumanMessage):
+                history_text += f"User: {history[i].content}\n"
+            if i + 1 < len(history) and isinstance(history[i + 1], AIMessage):
+                history_text += f"Assistant: {history[i + 1].content}\n"
+        
+        # Simple contextualization - just use the question for now
+        # In a full implementation, you'd use an LLM to rewrite the query
+        return question # Simplified
+    
+    def chat(self, question: str) -> Tuple[str, List[dict]]:
+        """
+        Ask a question to the chatbot. 
+        Uses Agentic Workflow if enabled, otherwise falls back to Linear RAG.
+        """
+        try:
+            # 1. Agentic Mode
+            if self.use_agent and self.agent_executor:
+                logger.info("Executing Agentic Workflow...")
+                
+                # Contextualize with history
+                # Use comprehensive system prompt for high-quality answers
+                from code_chatbot.prompts import SYSTEM_PROMPT_AGENT
+                sys_content = SYSTEM_PROMPT_AGENT.format(repo_name=self.repo_name)
+                system_msg = SystemMessage(content=sys_content)
+                
+                # Token Optimization: Only pass last 4 messages (2 turns) to keep context light.
+                recent_history = self.chat_history[-4:] if self.chat_history else []
+                
+                inputs = {
+                    "messages": [system_msg] + recent_history + [HumanMessage(content=question)]
+                }
+                
+                # Run the graph
+                try:
+                    final_state = self.agent_executor.invoke(inputs, config={"recursion_limit": 20})
+                    
+                    # Extract Answer
+                    messages = final_state["messages"]
+                    raw_content = messages[-1].content
+                    
+                    # Handle Gemini's multi-part content
+                    if isinstance(raw_content, list):
+                        answer = ""
+                        for block in raw_content:
+                            if isinstance(block, dict) and block.get('type') == 'text':
+                                answer += block.get('text', '')
+                            elif isinstance(block, str):
+                                answer += block
+                        answer = answer.strip() or str(raw_content)
+                    else:
+                        answer = raw_content
+                    
+                    # Update history
+                    self.chat_history.append(HumanMessage(content=question))
+                    self.chat_history.append(AIMessage(content=answer))
+                    if len(self.chat_history) > 20: self.chat_history = self.chat_history[-20:]
+                    
+                    return answer, []
+                    
+                except Exception as e:
+                    # Fallback for Groq/LLM Tool Errors & Rate Limits
+                    error_str = str(e)
+                    if any(err in error_str for err in ["tool_use_failed", "invalid_request_error", "400", "429", "RESOURCE_EXHAUSTED"]):
+                        logger.warning(f"Agent failed ({error_str}), falling back to Linear RAG.")
+                        return self._linear_chat(question)
+                    raise e 
+
+            # 2. Linear RAG Mode (Fallback)
+            return self._linear_chat(question)
+            
+        except Exception as e:
+            logger.error(f"Error during chat: {e}", exc_info=True)
+            return f"Error: {str(e)}", []
+    
+    def _linear_chat(self, question: str) -> Tuple[str, List[dict]]:
+        """Legacy Linear RAG implementation."""
+        """
+        Ask a question to the chatbot with history-aware retrieval.
+        
+        Returns:
+            Tuple of (answer, sources) where sources is a list of dicts with file_path and url
+        """
+        try:
+            # Contextualize query based on history
+            contextualized_query = self._contextualize_query(question, self.chat_history)
+            
+            # Retrieve relevant documents
+            docs = self.retriever.invoke(contextualized_query)
+            logger.info(f"Retrieved {len(docs)} documents")
+            
+            if not docs:
+                return "I don't have any information about this codebase. Please make sure the codebase has been indexed properly.", []
+            
+            # Build context from documents
+            context_text = "\n\n".join([
+                f"File: {doc.metadata.get('file_path', 'unknown')}\n{doc.page_content[:500]}..."
+                for doc in docs[:5]  # Limit to top 5 docs
+            ])
+            
+            # Extract sources
+            sources = []
+            for doc in docs[:5]:
+                file_path = doc.metadata.get("file_path") or doc.metadata.get("source", "unknown")
+                sources.append({
+                    "file_path": file_path,
+                    "url": doc.metadata.get("url", f"file://{file_path}"),
+                })
+            
+            # Build prompt with history
+            qa_system_prompt = (
+                f"You are a Code Chatbot, an expert software engineering assistant helping me quickly understand "
+                f"a codebase called {self.repo_name}.\n"
+                "Assume I am an advanced developer and answer my questions in the most succinct way possible.\n"
+                "Always provide code examples where relevant.\n"
+                "Link your answers to specific files if possible.\n\n"
+                "Here are some snippets from the codebase:\n\n"
+                f"{context_text}"
+            )
+            
+            # Build messages with history
+            messages = [SystemMessage(content=qa_system_prompt)]
+            
+            # Add chat history
+            for msg in self.chat_history[-10:]:  # Last 10 messages for context
+                messages.append(msg)
+            
+            # Add current question
+            messages.append(HumanMessage(content=question))
+            
+            # Get response from LLM
+            response_msg = self.llm.invoke(messages)
+            answer = response_msg.content
+            
+            # Update chat history
+            self.chat_history.append(HumanMessage(content=question))
+            self.chat_history.append(AIMessage(content=answer))
+            
+            # Keep history manageable (last 20 messages)
+            if len(self.chat_history) > 20:
+                self.chat_history = self.chat_history[-20:]
+            
+            return answer, sources
+            
+        except Exception as e:
+            logger.error(f"Error during chat: {e}", exc_info=True)
+            return f"Error: {str(e)}", []
+    
+    def clear_memory(self):
+        """Clear the conversation history."""
+        self.chat_history.clear()
