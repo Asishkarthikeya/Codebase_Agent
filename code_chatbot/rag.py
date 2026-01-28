@@ -118,8 +118,13 @@ class ChatEngine:
                 if not os.getenv("GOOGLE_API_KEY"):
                     raise ValueError("Google API Key is required for Gemini")
             
+            # Use models/ prefix for Gemini models
+            model_name = self.model_name or "gemini-1.5-flash"
+            if not model_name.startswith("models/"):
+                model_name = f"models/{model_name}"
+            
             return ChatGoogleGenerativeAI(
-                model=self.model_name or "gemini-2.5-flash",
+                model=model_name,
                 google_api_key=api_key,
                 temperature=0.2, # Low temp for agents
                 convert_system_message_to_human=True
