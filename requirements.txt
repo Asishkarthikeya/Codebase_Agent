@@ -15,6 +15,7 @@ tree-sitter-python
 tree-sitter-javascript
 networkx
 sentence-transformers
+langchain-huggingface
 gitpython
 beautifulsoup4
 pygments
