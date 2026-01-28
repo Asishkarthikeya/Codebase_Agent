@@ -118,10 +118,11 @@ class ChatEngine:
                 if not os.getenv("GOOGLE_API_KEY"):
                     raise ValueError("Google API Key is required for Gemini")
             
-            # Use models/ prefix for Gemini models
-            model_name = self.model_name or "gemini-1.5-flash"
-            if not model_name.startswith("models/"):
-                model_name = f"models/{model_name}"
+            # Use model name without prefix - langchain handles it
+            model_name = self.model_name or "gemini-2.5-flash"
+            # Remove models/ prefix if present (langchain adds it)
+            if model_name.startswith("models/"):
+                model_name = model_name.replace("models/", "")
             
             return ChatGoogleGenerativeAI(
                 model=model_name,
