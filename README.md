@@ -1,71 +1,144 @@
-# Codebase Agent 🕷️
+# 🕷️ Code Crawler - Intelligent Codebase Agent
 
-**Codebase Agent** is an intelligent, local-first code analysis tool that helps you understand, navigate, and query your codebase using advanced AI agents.
+An AI-powered codebase assistant that understands your code and helps you navigate, analyze, and modify it. Built with RAG (Retrieval-Augmented Generation), MCP (Model Context Protocol), and CrewAI multi-agent workflows.
 
-Think of it as a private, super-powered developer assistant that knows your code inside out.
+## ✨ Features
 
-![Screenshot](assets/logo.png)
+### 💬 Chat Mode
+- Ask questions about your codebase
+- Get explanations of functions, modules, and workflows
+- Understand code architecture and data flow
 
-## ✨ Key Features
+### 🔍 Search Mode (MCP-Powered)
+- Regex pattern matching across your entire codebase
+- Context-aware search results with surrounding code
+- File pattern filtering (glob)
 
-- **🛡️ 100% Local option**: Run with Ollama + local embeddings for complete privacy.
-- **🧠 Agentic Reasoning**: Uses AST (Abstract Syntax Tree) analysis and Call Graphs to trace execution and dependencies.
-- **🕸️ Call Graph Navigation**: Ask questions like "Who calls `database.connect`?" or "What acts as the entry point?".
-- **⚡ Multiple Providers**: Support for **Google Gemini** (1M+ context), **Groq** (fast inference), and standard OpenAI-compatible APIs.
-- **📂 Universal Ingestion**: Upload ZIP files or point to GitHub repositories.
+### 🔧 Refactor Mode (MCP-Powered)
+- Automated search-and-replace refactorings
+- Dry-run preview before applying changes
+- Common refactoring patterns built-in
 
-## 🚀 Advanced Features (Cursor-Inspired)
-
-- **🔄 Incremental Indexing**: Merkle tree-based change detection for 10-100x faster re-indexing
-- **🔒 Privacy-Preserving**: Optional HMAC-based path obfuscation for sensitive codebases
-- **🧩 Semantic Chunking**: AST-based code splitting that respects function/class boundaries
-- **📊 Rich Metadata**: Automatic extraction of symbols, imports, and cyclomatic complexity
-- **🎯 Hybrid Search**: Combines semantic similarity with keyword matching
-- **⚙️ Highly Configurable**: Fine-tune chunking, retrieval, and privacy settings
-
-**[📖 Read the Technical Deep-Dive](docs/RAG_PIPELINE.md)** to understand how our RAG pipeline works.
+### ✨ Generate Mode (AI-Powered)
+- Generate complete features from descriptions
+- Follows your codebase's existing patterns
+- Includes tests and documentation
 
 ## 🚀 Quick Start
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Asishkarthikeya/Codebase_Agent.git
-   cd Codebase_Agent
-   ```
+### 1. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
 
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 2. Set Environment Variables
+```bash
+export GOOGLE_API_KEY="your-api-key"
+```
+Or create a `.env` file:
+```
+GOOGLE_API_KEY=your-api-key
+```
 
-3. **Run the application**:
-   ```bash
-   streamlit run app.py
-   ```
+### 3. Run the App
+```bash
+streamlit run app.py
+```
 
-4. **Upload & Chat**:
-   - Open `http://localhost:8501`
-   - Enter your API Key (e.g., Gemini or Groq) in the sidebar
-   - Upload a `.zip` of your code or provide a GitHub URL
-   - Start chatting!
+### 4. Use the App
+1. Upload a ZIP file of your codebase
+2. Click "Process & Index"
+3. Start chatting or switch modes!
+
+## 📁 Project Structure
+
+```
+Codebase_Agent/
+├── app.py                        # Main Streamlit application
+│
+├── code_chatbot/                 # Core library
+│   │
+│   │── Core RAG Engine
+│   ├── rag.py                   # Chat engine with RAG
+│   ├── prompts.py               # System prompts
+│   ├── config.py                # Centralized configuration
+│   │
+│   │── Indexing & Chunking
+│   ├── indexer.py               # Vector database indexing
+│   ├── chunker.py               # AST-aware code chunking
+│   ├── merkle_tree.py           # Incremental change detection
+│   ├── incremental_indexing.py  # Incremental indexing logic
+│   ├── indexing_progress.py     # Progress tracking UI
+│   ├── path_obfuscator.py       # Privacy-preserving paths
+│   │
+│   │── Retrieval
+│   ├── retriever_wrapper.py     # Enhanced retriever
+│   ├── llm_retriever.py         # LLM-based retrieval
+│   ├── reranker.py              # Result reranking
+│   ├── graph_rag.py             # Graph-enhanced RAG
+│   │
+│   │── Code Analysis
+│   ├── ast_analysis.py          # AST parsing & call graphs
+│   ├── code_symbols.py          # Symbol extraction
+│   │
+│   │── MCP Tools
+│   ├── mcp_server.py            # MCP server (search, refactor)
+│   ├── mcp_client.py            # MCP client interface
+│   │
+│   │── Multi-Agent (CrewAI)
+│   ├── agents/                  # Agent definitions
+│   ├── crews/                   # Crew workflows
+│   ├── agent_workflow.py        # Agent orchestration
+│   ├── tools.py                 # Agent tools
+│   │
+│   │── Utilities
+│   ├── universal_ingestor.py    # File ingestion (ZIP, GitHub, Web)
+│   └── rate_limiter.py          # API rate limiting
+│
+├── components/                   # Streamlit UI components
+│   └── multi_mode.py            # Mode selector & interfaces
+│
+├── api/                          # FastAPI REST endpoints
+│   ├── main.py                  # API entry point
+│   ├── routes/                  # Route handlers
+│   └── schemas.py               # Pydantic models
+│
+├── docs/                         # Documentation
+│   └── RAG_PIPELINE.md          # Technical documentation
+│
+├── tests/                        # Test suite
+│
+└── assets/                       # Static assets (logo, etc.)
+```
 
 ## 🔧 Configuration
 
-The agent creates a `.env` file for your configuration, but you can also set these environment variables manually:
+All configuration is centralized in `code_chatbot/config.py`:
 
-- `GOOGLE_API_KEY`: For Gemini models
-- `GROQ_API_KEY`: For Groq models
-- `QDRANT_API_KEY`: For Qdrant vector DB
+```python
+from code_chatbot.config import get_default_config
 
-## 🤖 Agent Credentials
+config = get_default_config()
+print(config.chunking.max_chunk_size)  # 1000
+print(config.retrieval.top_k)          # 10
+```
 
-This project uses:
-- **Streamlit** for the UI
-- **LangChain** for orchestration
-- **ChromaDB** for vector storage
-- **NetworkX** for code graph analysis
-- **Tree-sitter** for robust parsing
+## 🛠️ Technology Stack
 
-## License
+| Component | Technology |
+|-----------|------------|
+| **UI** | Streamlit |
+| **LLM** | Google Gemini |
+| **Embeddings** | gemini-embedding-001 |
+| **Vector DB** | ChromaDB / FAISS / Qdrant |
+| **RAG** | LangChain |
+| **Agents** | CrewAI |
+| **Code Tools** | MCP (Model Context Protocol) |
 
-MIT License. See [LICENSE](LICENSE) for details.
+## 📖 Documentation
+
+- [RAG Pipeline](docs/RAG_PIPELINE.md) - Technical deep-dive
+
+## 📄 License
+
+Apache 2.0 - See [LICENSE](LICENSE)
