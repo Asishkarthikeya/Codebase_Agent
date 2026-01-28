@@ -46,4 +46,4 @@ extracted/
 *.log
 
 # Streamlit
-.streamlit/
+.streamlit/assets/
