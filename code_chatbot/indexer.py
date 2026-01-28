@@ -62,11 +62,20 @@ class Indexer:
             )
             logger.info("Path obfuscation enabled")
 
-        # Setup Embeddings (only Gemini supported)
+        # Setup Embeddings - supports Gemini (API) and local HuggingFace
         if embedding_function:
             self.embedding_function = embedding_function
         else:
-            if provider == "gemini":
+            if provider == "local" or provider == "huggingface":
+                # Use local embeddings - NO RATE LIMITS!
+                from langchain_huggingface import HuggingFaceEmbeddings
+                self.embedding_function = HuggingFaceEmbeddings(
+                    model_name="all-MiniLM-L6-v2",  # Fast & good quality
+                    model_kwargs={'device': 'cpu'},
+                    encode_kwargs={'normalize_embeddings': True}
+                )
+                logger.info("Using LOCAL embeddings (no rate limits)")
+            elif provider == "gemini":
                 api_key = api_key or os.getenv("GOOGLE_API_KEY")
                 if not api_key:
                     raise ValueError("Google API Key is required for Gemini Embeddings")
@@ -74,8 +83,9 @@ class Indexer:
                     model="models/gemini-embedding-001",
                     google_api_key=api_key
                 )
+                logger.info("Using Gemini embeddings (API rate limits apply)")
             else:
-                raise ValueError(f"Unsupported embedding provider: {provider}. Only 'gemini' is supported.")
+                raise ValueError(f"Unsupported embedding provider: {provider}. Use 'local', 'huggingface', or 'gemini'.")
                 
     def clear_collection(self, collection_name: str = "codebase"):
         """

@@ -380,17 +380,18 @@ with st.sidebar:
             os.environ["QDRANT_API_KEY"] = qdrant_key
 
     # For Groq, we need an embedding provider
-    embedding_provider = provider
+    # Use LOCAL embeddings by default - NO RATE LIMITS!
+    embedding_provider = "local"  # Use local HuggingFace embeddings
     embedding_api_key = api_key
     
     if provider == "groq":
-        st.info(f"ℹ️ {provider.capitalize()} is used for Chat. For indexing, please select 'gemini' for embeddings.")
-        embedding_provider = "gemini" # Force gemini if groq is used, as openai is removed
+        st.info(f"ℹ️ {provider.capitalize()} is used for Chat. Using LOCAL embeddings (no rate limits!).")
+        embedding_provider = "local"  # Use local embeddings for Groq too
         
-        # Check Embedding Key for Gemini
+        # Check Embedding Key for Gemini (not needed for local)
         emb_env_key = os.getenv("GOOGLE_API_KEY")
         if not emb_env_key and provider != "gemini":
-             embedding_api_key = st.text_input("Google API Key (for Embeddings)", type="password")
+             embedding_api_key = emb_env_key  # Optional now
         else:
              embedding_api_key = emb_env_key
 
