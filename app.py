@@ -331,16 +331,16 @@ with st.sidebar:
         gemini_model = st.selectbox(
             "Gemini Model",
             [
-                "gemini-2.5-flash",
-                "gemini-2.0-flash-exp",
+                "gemini-1.5-flash",
                 "gemini-1.5-pro",
-                "gemini-2.5-pro",  # Requires paid plan
+                "gemini-2.0-flash",
+                "gemini-2.5-flash",  # May require newer API
             ],
-            index=0,  # Default to 2.5 Flash (free tier)
-            help="""**Gemini 2.5 Flash** (Recommended): Latest flash model with great reasoning, FREE tier
-**Gemini 2.0 Flash**: Fast multimodal model, 1M context, FREE tier (15 RPM)
-**Gemini 1.5 Pro**: More stable, better for complex reasoning, 2M context, FREE tier (50 RPM)
-**Gemini 2.5 Pro**: Most powerful model, requires PAID plan"""
+            index=0,  # Default to 1.5 Flash (stable, free tier)
+            help="""**Gemini 1.5 Flash** (Recommended): Stable, fast, FREE tier (15 RPM)
+**Gemini 1.5 Pro**: Better reasoning, 2M context, FREE tier
+**Gemini 2.0 Flash**: Newer model, may have lower limits
+**Gemini 2.5 Flash**: Latest, may require paid plan"""
         )
         st.caption(f"✨ Using {gemini_model}")
     
