@@ -16,21 +16,45 @@ logger = logging.getLogger(__name__)
 # Global ChromaDB client cache to avoid "different settings" error
 _chroma_clients = {}
 
+def reset_chroma_clients():
+    """Reset all cached ChromaDB clients. Call when database corruption is detected."""
+    global _chroma_clients
+    _chroma_clients = {}
+    logger.info("Reset ChromaDB client cache")
+
 def get_chroma_client(persist_directory: str):
     """Get or create a shared ChromaDB client for a given path."""
     global _chroma_clients
+    
+    # Ensure directory exists
+    os.makedirs(persist_directory, exist_ok=True)
     
     if persist_directory not in _chroma_clients:
         import chromadb
         from chromadb.config import Settings
         
-        _chroma_clients[persist_directory] = chromadb.PersistentClient(
-            path=persist_directory,
-            settings=Settings(
-                anonymized_telemetry=False,
-                allow_reset=True
+        try:
+            _chroma_clients[persist_directory] = chromadb.PersistentClient(
+                path=persist_directory,
+                settings=Settings(
+                    anonymized_telemetry=False,
+                    allow_reset=True
+                )
             )
-        )
+        except Exception as e:
+            logger.error(f"Failed to create ChromaDB client: {e}")
+            # Try to reset and create fresh
+            import shutil
+            if os.path.exists(persist_directory):
+                shutil.rmtree(persist_directory)
+            os.makedirs(persist_directory, exist_ok=True)
+            _chroma_clients[persist_directory] = chromadb.PersistentClient(
+                path=persist_directory,
+                settings=Settings(
+                    anonymized_telemetry=False,
+                    allow_reset=True
+                )
+            )
     
     return _chroma_clients[persist_directory]
 

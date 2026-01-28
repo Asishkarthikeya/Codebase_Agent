@@ -145,7 +145,10 @@ def index_with_progress(
             progress_bar.progress(1.0)
             
         else:  # Chroma
-            from code_chatbot.indexer import get_chroma_client
+            from code_chatbot.indexer import get_chroma_client, reset_chroma_clients
+            
+            # Reset client cache to avoid stale/corrupt connections
+            reset_chroma_clients()
             chroma_client = get_chroma_client(indexer.persist_directory)
             
             vectordb = Chroma(
