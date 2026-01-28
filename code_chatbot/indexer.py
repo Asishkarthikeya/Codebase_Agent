@@ -1,9 +1,13 @@
 import os
-from typing import List
+from typing import List, Optional
+from pathlib import Path
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from code_chatbot.chunker import StructuralChunker
+from code_chatbot.merkle_tree import MerkleTree, ChangeSet
+from code_chatbot.path_obfuscator import PathObfuscator
+from code_chatbot.config import get_config
 import shutil
 import logging
 
@@ -40,8 +44,23 @@ class Indexer:
         self.persist_directory = persist_directory
         self.provider = provider
         
+        # Load configuration
+        self.config = get_config()
+        
         # Initialize Structural Chunker
-        self.chunker = StructuralChunker()
+        self.chunker = StructuralChunker(max_tokens=self.config.chunking.max_chunk_tokens)
+        
+        # Initialize Merkle tree for change detection
+        self.merkle_tree = MerkleTree(ignore_patterns=self.config.indexing.ignore_patterns)
+        
+        # Initialize path obfuscator if enabled
+        self.path_obfuscator: Optional[PathObfuscator] = None
+        if self.config.privacy.enable_path_obfuscation:
+            self.path_obfuscator = PathObfuscator(
+                secret_key=self.config.privacy.obfuscation_key,
+                mapping_file=self.config.privacy.obfuscation_mapping_file
+            )
+            logger.info("Path obfuscation enabled")
 
         # Setup Embeddings (only Gemini supported)
         if embedding_function:
@@ -52,7 +71,7 @@ class Indexer:
                 if not api_key:
                     raise ValueError("Google API Key is required for Gemini Embeddings")
                 self.embedding_function = GoogleGenerativeAIEmbeddings(
-                    model="models/text-embedding-004",
+                    model="models/gemini-embedding-001",
                     google_api_key=api_key
                 )
             else:
@@ -120,8 +139,8 @@ class Indexer:
         else:
              raise ValueError(f"Unsupported Vector DB: {vector_db_type}")
         
-        # Batch processing
-        batch_size = 100
+        # Batch processing - smaller batches to avoid rate limits
+        batch_size = 20  # Reduced for free tier rate limits
         total_chunks = len(all_chunks)
         
         logger.info(f"Indexing {total_chunks} chunks in batches of {batch_size}...")
@@ -162,15 +181,24 @@ class Indexer:
         # Loop for Chroma (existing logic)
         for i in range(0, total_chunks, batch_size):
             batch = all_chunks[i:i + batch_size]
-            try:
-                vectordb.add_documents(documents=batch)
-                logger.info(f"Indexed batch {i // batch_size + 1}/{(total_chunks + batch_size - 1) // batch_size}")
-                # Optional: slight delay to be nice to API
-                time.sleep(0.5) 
-            except Exception as e:
-                logger.error(f"Error indexing batch {i}: {e}")
-                # Try one by one if batch fails??
-                continue
+            # Retry logic for rate limits
+            max_retries = 5
+            for retry in range(max_retries):
+                try:
+                    vectordb.add_documents(documents=batch)
+                    logger.info(f"Indexed batch {i // batch_size + 1}/{(total_chunks + batch_size - 1) // batch_size}")
+                    # Delay to avoid rate limits (free tier is ~15 req/min)
+                    time.sleep(4)  # 4 seconds between batches = ~15/min
+                    break
+                except Exception as e:
+                    error_str = str(e).lower()
+                    if 'rate' in error_str or '429' in error_str or 'quota' in error_str or 'resource_exhausted' in error_str:
+                        wait_time = 30 * (retry + 1)  # 30s, 60s, 90s, 120s, 150s
+                        logger.warning(f"Rate limit hit, waiting {wait_time}s... (retry {retry+1}/{max_retries})")
+                        time.sleep(wait_time)
+                    else:
+                        logger.error(f"Error indexing batch {i}: {e}")
+                        break
                 
         
         # PersistentClient auto-persists
@@ -235,3 +263,7 @@ class Indexer:
         retriever = vector_store.as_retriever(search_kwargs={"k": k})
         logger.info(f"Retriever created with k={k}")
         return retriever
+
+# Add incremental indexing methods to the Indexer class
+from code_chatbot.incremental_indexing import add_incremental_indexing_methods
+Indexer = add_incremental_indexing_methods(Indexer)

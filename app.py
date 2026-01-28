@@ -488,7 +488,37 @@ with st.sidebar:
 
 # Main Chat Interface
 st.title("🕷️ Code Crawler")
-st.caption(f"Ask questions about your uploaded project. (Using {provider}, Enhanced with AST)")
+
+# Multi-Mode Interface
+if st.session_state.processed_files:
+    from components.multi_mode import (
+        render_mode_selector,
+        render_chat_mode,
+        render_search_mode,
+        render_refactor_mode,
+        render_generate_mode
+    )
+    
+    # Mode selector at the top
+    selected_mode = render_mode_selector()
+    
+    st.divider()
+    
+    # Render appropriate interface based on mode
+    if selected_mode == "search":
+        render_search_mode()
+    elif selected_mode == "refactor":
+        render_refactor_mode()
+    elif selected_mode == "generate":
+        render_generate_mode(st.session_state.chat_engine)
+    else:  # chat mode
+        # Show chat mode UI
+        render_chat_mode(st.session_state.chat_engine)
+        
+        # Continue with standard chat interface below
+        st.caption(f"Ask questions about your uploaded project. (Using {provider}, Enhanced with AST)")
+else:
+    st.caption(f"Configure and index your codebase to get started. (Using {provider}, Enhanced with AST)")
 
 if not st.session_state.processed_files:
     st.info("👈 Please upload and index a ZIP file to start.")

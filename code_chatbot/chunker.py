@@ -19,11 +19,17 @@ tokenizer = tiktoken.get_encoding("cl100k_base")
 
 @dataclass
 class FileChunk:
-    """Represents a chunk of code with byte positions."""
+    """Represents a chunk of code with byte positions and rich metadata."""
     file_content: str
     file_metadata: Dict
     start_byte: int
     end_byte: int
+    
+    # Enhanced metadata fields
+    symbols_defined: Optional[List[str]] = None  # Functions/classes defined in this chunk
+    imports_used: Optional[List[str]] = None     # Import statements relevant to chunk
+    complexity_score: Optional[int] = None       # Cyclomatic complexity
+    parent_context: Optional[str] = None         # Parent class/module name
     
     @cached_property
     def filename(self):
@@ -42,22 +48,47 @@ class FileChunk:
         return len(tokenizer.encode(self.content, disallowed_special=()))
     
     def to_document(self) -> Document:
-        """Convert to LangChain Document."""
+        """Convert to LangChain Document with enhanced metadata."""
         chunk_type = self.file_metadata.get("chunk_type", "code")
         name = self.file_metadata.get("name", None)
         
-        return Document(
-            page_content=self.content,
-            metadata={
-                **self.file_metadata,
-                "id": f"{self.filename}_{self.start_byte}_{self.end_byte}",
-                "start_byte": self.start_byte,
-                "end_byte": self.end_byte,
-                "length": self.end_byte - self.start_byte,
-                "chunk_type": chunk_type,
-                "name": name,
-            }
-        )
+        # Calculate line range from byte positions
+        lines_before = self.file_content[:self.start_byte].count('\n')
+        lines_in_chunk = self.file_content[self.start_byte:self.end_byte].count('\n')
+        line_range = f"L{lines_before + 1}-L{lines_before + lines_in_chunk + 1}"
+        
+        # Get language from file extension
+        ext = self.filename.split('.')[-1].lower() if '.' in self.filename else 'unknown'
+        language_map = {
+            'py': 'python', 'js': 'javascript', 'ts': 'typescript',
+            'jsx': 'javascript', 'tsx': 'typescript', 'java': 'java',
+            'cpp': 'cpp', 'c': 'c', 'go': 'go', 'rs': 'rust'
+        }
+        language = language_map.get(ext, ext)
+        
+        metadata = {
+            **self.file_metadata,
+            "id": f"{self.filename}_{self.start_byte}_{self.end_byte}",
+            "start_byte": self.start_byte,
+            "end_byte": self.end_byte,
+            "length": self.end_byte - self.start_byte,
+            "line_range": line_range,
+            "language": language,
+            "chunk_type": chunk_type,
+            "name": name,
+        }
+        
+        # Add enhanced metadata if available
+        if self.symbols_defined:
+            metadata["symbols"] = self.symbols_defined
+        if self.imports_used:
+            metadata["imports"] = self.imports_used
+        if self.complexity_score is not None:
+            metadata["complexity"] = self.complexity_score
+        if self.parent_context:
+            metadata["parent_context"] = self.parent_context
+        
+        return Document(page_content=self.content, metadata=metadata)
 
 
 class StructuralChunker:
@@ -167,7 +198,14 @@ class StructuralChunker:
             name = self._get_node_name(node, file_content)
             if name:
                 chunk_metadata["name"] = name
+            
+            # Extract enhanced metadata
             node_chunk.file_metadata = chunk_metadata
+            node_chunk.symbols_defined = self._extract_symbols(node, file_content)
+            node_chunk.imports_used = self._extract_imports(node, file_content)
+            node_chunk.complexity_score = self._calculate_complexity(node, file_content)
+            node_chunk.parent_context = self._get_parent_context(node, file_content)
+            
             return [node_chunk]
         
         # If leaf node is too large, split it as text
@@ -249,3 +287,114 @@ class StructuralChunker:
         if name_node:
             return content[name_node.start_byte:name_node.end_byte]
         return None
+    
+    def _extract_symbols(self, node: Node, content: str) -> List[str]:
+        """
+        Extract function and class names defined in this node.
+        
+        Returns:
+            List of symbol names (e.g., ['MyClass', 'MyClass.my_method'])
+        """
+        symbols = []
+        
+        def traverse(n: Node, parent_class: Optional[str] = None):
+            # Check if this is a function or class definition
+            if n.type in ['function_definition', 'class_definition', 'method_definition']:
+                name = self._get_node_name(n, content)
+                if name:
+                    if parent_class:
+                        symbols.append(f"{parent_class}.{name}")
+                    else:
+                        symbols.append(name)
+                    
+                    # If it's a class, traverse its children with this class as parent
+                    if n.type == 'class_definition':
+                        for child in n.children:
+                            traverse(child, name)
+                        return  # Don't traverse children again
+            
+            # Traverse children
+            for child in n.children:
+                traverse(child, parent_class)
+        
+        traverse(node)
+        return symbols
+    
+    def _extract_imports(self, node: Node, content: str) -> List[str]:
+        """
+        Extract import statements from this node.
+        
+        Returns:
+            List of import statements (e.g., ['import os', 'from typing import List'])
+        """
+        imports = []
+        
+        def traverse(n: Node):
+            # Python imports
+            if n.type in ['import_statement', 'import_from_statement']:
+                import_text = content[n.start_byte:n.end_byte].strip()
+                imports.append(import_text)
+            
+            # JavaScript/TypeScript imports
+            elif n.type == 'import_statement':
+                import_text = content[n.start_byte:n.end_byte].strip()
+                imports.append(import_text)
+            
+            # Traverse children
+            for child in n.children:
+                traverse(child)
+        
+        traverse(node)
+        return imports
+    
+    def _calculate_complexity(self, node: Node, content: str) -> int:
+        """
+        Calculate cyclomatic complexity for a code chunk.
+        
+        Cyclomatic complexity = number of decision points + 1
+        Decision points: if, elif, for, while, except, and, or, case, etc.
+        
+        Returns:
+            Complexity score (integer)
+        """
+        complexity = 1  # Base complexity
+        
+        # Decision point node types
+        decision_nodes = {
+            'if_statement', 'elif_clause', 'else_clause',
+            'for_statement', 'while_statement',
+            'except_clause', 'case_clause',
+            'conditional_expression',  # ternary operator
+            'boolean_operator',  # and, or
+        }
+        
+        def traverse(n: Node):
+            nonlocal complexity
+            
+            if n.type in decision_nodes:
+                complexity += 1
+            
+            for child in n.children:
+                traverse(child)
+        
+        traverse(node)
+        return complexity
+    
+    def _get_parent_context(self, node: Node, content: str) -> Optional[str]:
+        """
+        Get the parent class or module context for this node.
+        
+        Returns:
+            Parent class name or None
+        """
+        current = node.parent
+        
+        while current:
+            if current.type == 'class_definition':
+                name = self._get_node_name(current, content)
+                if name:
+                    return name
+            current = current.parent
+        
+        return None
+

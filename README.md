@@ -14,6 +14,17 @@ Think of it as a private, super-powered developer assistant that knows your code
 - **⚡ Multiple Providers**: Support for **Google Gemini** (1M+ context), **Groq** (fast inference), and standard OpenAI-compatible APIs.
 - **📂 Universal Ingestion**: Upload ZIP files or point to GitHub repositories.
 
+## 🚀 Advanced Features (Cursor-Inspired)
+
+- **🔄 Incremental Indexing**: Merkle tree-based change detection for 10-100x faster re-indexing
+- **🔒 Privacy-Preserving**: Optional HMAC-based path obfuscation for sensitive codebases
+- **🧩 Semantic Chunking**: AST-based code splitting that respects function/class boundaries
+- **📊 Rich Metadata**: Automatic extraction of symbols, imports, and cyclomatic complexity
+- **🎯 Hybrid Search**: Combines semantic similarity with keyword matching
+- **⚙️ Highly Configurable**: Fine-tune chunking, retrieval, and privacy settings
+
+**[📖 Read the Technical Deep-Dive](docs/RAG_PIPELINE.md)** to understand how our RAG pipeline works.
+
 ## 🚀 Quick Start
 
 1. **Clone the repository**:
