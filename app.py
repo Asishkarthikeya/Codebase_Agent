@@ -549,135 +549,50 @@ if not st.session_state.processed_files:
     4. **Explore** your code with the file explorer and chat interface
     """)
 else:
-    # 3-Panel Layout: File Tree | Code Viewer | Chat/Tools
-    from components.file_explorer import render_file_tree, get_indexed_files_from_session
-    from components.code_viewer import render_code_viewer_simple
-    from components.multi_mode import (
-        render_mode_selector,
-        render_chat_mode,
-        render_search_mode,
-        render_refactor_mode,
-        render_generate_mode
-    )
+    # Home page - show navigation to other pages
+    st.markdown("""
+    ### 🎉 Codebase Ready!
     
-    # Initialize session state for file explorer
-    if "selected_file" not in st.session_state:
-        st.session_state.selected_file = None
-    if "indexed_files" not in st.session_state:
-        st.session_state.indexed_files = []
+    Your codebase has been indexed and is ready to explore. Use the pages below:
+    """)
     
-    # Create 3 columns: File Tree (15%) | Code Viewer (45%) | Chat/Tools (40%)
-    col_tree, col_viewer, col_chat = st.columns([0.15, 0.45, 0.40])
+    # Navigation cards
+    col1, col2 = st.columns(2)
     
-    # --- LEFT PANEL: File Tree ---
-    with col_tree:
-        render_file_tree(
-            st.session_state.get("indexed_files", []),
-            st.session_state.get("workspace_root", "")
-        )
-    
-    # --- CENTER PANEL: Code Viewer ---
-    with col_viewer:
-        render_code_viewer_simple(st.session_state.get("selected_file"))
-    
-    # --- RIGHT PANEL: Chat/Tools ---
-    with col_chat:
-        # Mode selector at the top
-        selected_mode = render_mode_selector()
+    with col1:
+        st.markdown("""
+        <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 12px; padding: 20px; margin: 10px 0;">
+            <h3>📁 Explorer</h3>
+            <p style="color: #94a3b8;">Browse files and view code with syntax highlighting</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        st.divider()
+        st.markdown("""
+        <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; padding: 20px; margin: 10px 0;">
+            <h3>🔍 Search</h3>
+            <p style="color: #94a3b8;">Search across all indexed files with regex support</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(34, 197, 94, 0.2); border-radius: 12px; padding: 20px; margin: 10px 0;">
+            <h3>💬 Chat</h3>
+            <p style="color: #94a3b8;">Ask questions about your code and get AI-powered answers</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Render appropriate interface based on mode
-        if selected_mode == "search":
-            render_search_mode()
-        elif selected_mode == "refactor":
-            render_refactor_mode()
-        elif selected_mode == "generate":
-            render_generate_mode(st.session_state.chat_engine)
-        else:  # chat mode
-            # Show chat mode UI
-            render_chat_mode(st.session_state.chat_engine)
-            st.caption(f"Using {provider}, Enhanced with AST")
-            
-            # Display History
-            for msg in st.session_state.messages:
-                with st.chat_message(msg["role"]):
-                    # Render Sources if available
-                    if "sources" in msg and msg["sources"]:
-                        unique_sources = {}
-                        for s in msg["sources"]:
-                            if isinstance(s, dict):
-                                fp = s.get('file_path', 'Unknown')
-                            else:
-                                fp = str(s)
-                            if fp not in unique_sources:
-                                unique_sources[fp] = s
-
-                        chips_html = '<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">'
-                        for fp in unique_sources:
-                            basename = os.path.basename(fp) if "/" in fp else fp
-                            chips_html += f"""
-                            <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 4px 10px; font-size: 0.85em; color: #cbd5e1;">
-                                📄 {basename}
-                            </div>
-                            """
-                        chips_html += '</div>'
-                        st.markdown(chips_html, unsafe_allow_html=True)
-                    
-                    st.markdown(msg["content"], unsafe_allow_html=True)
-
-            # Handle pending prompt from suggestion buttons
-            prompt = None
-            if st.session_state.get("pending_prompt"):
-                prompt = st.session_state.pending_prompt
-                st.session_state.pending_prompt = None
-
-            # Input
-            if not prompt:
-                prompt = st.chat_input("Ask about your code...")
-
-            if prompt:
-                st.session_state.messages.append({"role": "user", "content": prompt})
-                with st.chat_message("user"):
-                    st.markdown(prompt)
-
-                with st.chat_message("assistant"):
-                    if st.session_state.chat_engine:
-                        with st.spinner("Analyzing..."):
-                            answer_payload = st.session_state.chat_engine.chat(prompt)
-                            
-                            if isinstance(answer_payload, tuple):
-                                answer, sources = answer_payload
-                            else:
-                                answer = answer_payload
-                                sources = []
-                            
-                            if sources:
-                                unique_sources = {}
-                                for s in sources:
-                                    fp = s.get('file_path', 'Unknown')
-                                    if fp not in unique_sources:
-                                        unique_sources[fp] = s
-                                
-                                chips_html = '<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">'
-                                for fp in unique_sources:
-                                    basename = os.path.basename(fp)
-                                    chips_html += f"""
-                                    <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 4px 10px; font-size: 0.85em; color: #cbd5e1;">
-                                        📄 {basename}
-                                    </div>
-                                    """
-                                chips_html += '</div>'
-                                st.markdown(chips_html, unsafe_allow_html=True)
-
-                            st.markdown(answer)
-                            
-                            msg_data = {
-                                "role": "assistant",
-                                "content": answer,
-                                "sources": sources if sources else []
-                            }
-                            st.session_state.messages.append(msg_data)
-                    else:
-                        st.error("Chat engine not initialized. Please re-index.")
-
+        st.markdown("""
+        <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(251, 191, 36, 0.2); border-radius: 12px; padding: 20px; margin: 10px 0;">
+            <h3>✨ Generate</h3>
+            <p style="color: #94a3b8;">Generate new code and modify existing files</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.info("👈 Use the sidebar to navigate between pages")
+    
+    # Quick stats
+    indexed_files = st.session_state.get("indexed_files", [])
+    if indexed_files:
+        st.markdown("---")
+        st.markdown(f"**📊 Stats:** {len(indexed_files)} files indexed")
