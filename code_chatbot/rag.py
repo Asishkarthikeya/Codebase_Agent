@@ -363,6 +363,24 @@ class ChatEngine:
             return f"Error: {str(e)}", []
     
     def _linear_chat(self, question: str) -> Tuple[str, List[dict]]:
+    def _generate_file_tree_str(self):
+        """Generate a string representation of the file tree."""
+        if not self.repo_files:
+            return ""
+        
+        # Generate simple list of relative paths
+        paths = set()
+        for f in self.repo_files:
+            # Clean path
+            if self.repo_dir and f.startswith(self.repo_dir):
+                rel = os.path.relpath(f, self.repo_dir)
+            else:
+                rel = f
+            paths.add(rel)
+            
+        tree_str = "Project Structure (File Tree):\n" + "\n".join(sorted(list(paths)))
+        return tree_str
+
     def _prepare_chat_context(self, question: str):
         """Prepare messages and sources for chat/stream."""
         # 1. Retrieve relevant documents
@@ -379,7 +397,6 @@ class ChatEngine:
             return None, [], ""
             
         # Build context from documents - Use FULL content, not truncated
-        # Gemini 1.5/2.0 can handle 1M+ tokens, so we should provide as much context as possible.
         context_parts = []
         for doc in docs[:30]: # Use top 30 documents
             file_path = doc.metadata.get('file_path', 'unknown')
@@ -387,6 +404,10 @@ class ChatEngine:
             context_parts.append(f"File: {file_path}\nWait, content:\n{content}\n---")
             
         context_text = "\n\n".join(context_parts)
+        
+        # Inject File Tree into context
+        file_tree = self._generate_file_tree_str()
+        full_context = f"{file_tree}\n\nRETRIEVED CONTEXT:\n{context_text}"
         
         # Extract sources
         sources = []
@@ -402,7 +423,7 @@ class ChatEngine:
         base_prompt = get_prompt_for_provider("linear_rag", self.provider)
         qa_system_prompt = base_prompt.format(
             repo_name=self.repo_name,
-            context=context_text
+            context=full_context
         )
         
         # Build messages with history
