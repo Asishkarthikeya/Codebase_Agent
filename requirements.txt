@@ -19,6 +19,11 @@ langchain-huggingface
 gitpython
 beautifulsoup4
 pygments
+requests
+
+# Vector Databases
+faiss-cpu
+langchain-chroma
 
 # MCP (Model Context Protocol)
 mcp>=1.0.0
