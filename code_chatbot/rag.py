@@ -118,18 +118,51 @@ class ChatEngine:
                 if not os.getenv("GOOGLE_API_KEY"):
                     raise ValueError("Google API Key is required for Gemini")
             
-            # Use model name without prefix - langchain handles it
-            model_name = self.model_name or "gemini-2.5-flash"
-            # Remove models/ prefix if present (langchain adds it)
-            if model_name.startswith("models/"):
-                model_name = model_name.replace("models/", "")
+            # Fallback list of Gemini models to try in order
+            GEMINI_MODELS_TO_TRY = [
+                "gemini-2.5-flash",
+                "gemini-2.5-pro", 
+                "gemini-2.0-flash",
+                "gemini-2.0-flash-lite",
+                "gemini-1.5-flash",
+                "gemini-1.5-pro",
+                "gemini-pro",
+            ]
             
-            return ChatGoogleGenerativeAI(
-                model=model_name,
-                google_api_key=api_key,
-                temperature=0.2, # Low temp for agents
-                convert_system_message_to_human=True
-            )
+            # If user specified a model, try it first
+            if self.model_name:
+                model_name = self.model_name
+                if model_name.startswith("models/"):
+                    model_name = model_name.replace("models/", "")
+                if model_name not in GEMINI_MODELS_TO_TRY:
+                    GEMINI_MODELS_TO_TRY.insert(0, model_name)
+                else:
+                    # Move specified model to front
+                    GEMINI_MODELS_TO_TRY.remove(model_name)
+                    GEMINI_MODELS_TO_TRY.insert(0, model_name)
+            
+            # Try each model until one works
+            last_error = None
+            for model_name in GEMINI_MODELS_TO_TRY:
+                try:
+                    logger.info(f"Attempting to use Gemini model: {model_name}")
+                    llm = ChatGoogleGenerativeAI(
+                        model=model_name,
+                        google_api_key=api_key,
+                        temperature=0.2,
+                        convert_system_message_to_human=True
+                    )
+                    # Test the model with a simple call
+                    llm.invoke("test")
+                    logger.info(f"Successfully initialized Gemini model: {model_name}")
+                    return llm
+                except Exception as e:
+                    logger.warning(f"Model {model_name} failed: {str(e)[:100]}")
+                    last_error = e
+                    continue
+            
+            # If all models failed, raise the last error
+            raise ValueError(f"All Gemini models failed. Last error: {last_error}")
         elif self.provider == "groq":
             if not api_key:
                 if not os.getenv("GROQ_API_KEY"):
