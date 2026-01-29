@@ -553,8 +553,17 @@ else:
             # Use unsafe_allow_html in case any formatted content exists
             st.markdown(msg["content"], unsafe_allow_html=True)
 
-    # Input
-    if prompt := st.chat_input("How does the authentication work?"):
+    # Handle pending prompt from suggestion buttons
+    prompt = None
+    if st.session_state.get("pending_prompt"):
+        prompt = st.session_state.pending_prompt
+        st.session_state.pending_prompt = None  # Clear it
+    
+    # Input - also check for pending prompt
+    if not prompt:
+        prompt = st.chat_input("How does the authentication work?")
+    
+    if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
