@@ -53,7 +53,11 @@ class GraphEnhancedRetriever(BaseRetriever):
             if any(file_path.endswith(ext) for ext in config_extensions):
                 return 50
             
-            # Lower priority: Text/doc files (often too generic)
+            # Low priority: Text/doc files (often too generic)
+            # EXCEPTION: README files are critical for context
+            if "readme" in file_path.lower():
+                return 90
+            
             text_extensions = [".txt", ".md", ".rst"]
             if any(file_path.endswith(ext) for ext in text_extensions):
                 return 30

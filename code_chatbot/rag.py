@@ -363,75 +363,106 @@ class ChatEngine:
             return f"Error: {str(e)}", []
     
     def _linear_chat(self, question: str) -> Tuple[str, List[dict]]:
-        """Legacy Linear RAG implementation."""
-        """
-        Ask a question to the chatbot with history-aware retrieval.
+    def _prepare_chat_context(self, question: str):
+        """Prepare messages and sources for chat/stream."""
+        # 1. Retrieve relevant documents
+        query_for_retrieval = question
+        if len(question) < 5 and len(self.chat_history) > 0:
+             # Enhance short queries with history
+            query_for_retrieval = f"{self.chat_history[-1].content} {question}"
+            
+        # Increase retrieval limit to 30 docs since Gemini has large context
+        docs = self.retriever.get_relevant_documents(query_for_retrieval)
         
-        Returns:
-            Tuple of (answer, sources) where sources is a list of dicts with file_path and url
-        """
-        try:
-            # Contextualize query based on history
-            contextualized_query = self._contextualize_query(question, self.chat_history)
+        if not docs:
+            # Return empty context if no docs found
+            return None, [], ""
             
-            # Retrieve relevant documents
-            docs = self.retriever.invoke(contextualized_query)
-            logger.info(f"Retrieved {len(docs)} documents")
+        # Build context from documents - Use FULL content, not truncated
+        # Gemini 1.5/2.0 can handle 1M+ tokens, so we should provide as much context as possible.
+        context_parts = []
+        for doc in docs[:30]: # Use top 30 documents
+            file_path = doc.metadata.get('file_path', 'unknown')
+            content = doc.page_content
+            context_parts.append(f"File: {file_path}\nWait, content:\n{content}\n---")
             
-            if not docs:
-                return "I don't have any information about this codebase. Please make sure the codebase has been indexed properly.", []
+        context_text = "\n\n".join(context_parts)
+        
+        # Extract sources
+        sources = []
+        for doc in docs[:30]:
+            file_path = doc.metadata.get("file_path") or doc.metadata.get("source", "unknown")
+            sources.append({
+                "file_path": file_path,
+                "url": doc.metadata.get("url", f"file://{file_path}"),
+            })
+        
+        # Build prompt with history - use provider-specific prompt
+        from code_chatbot.prompts import get_prompt_for_provider
+        base_prompt = get_prompt_for_provider("linear_rag", self.provider)
+        qa_system_prompt = base_prompt.format(
+            repo_name=self.repo_name,
+            context=context_text
+        )
+        
+        # Build messages with history
+        messages = [SystemMessage(content=qa_system_prompt)]
+        
+        # Add chat history
+        for msg in self.chat_history[-10:]:  # Last 10 messages for context
+            messages.append(msg)
+        
+        # Add current question
+        messages.append(HumanMessage(content=question))
+        
+        return messages, sources, context_text
+
+    def chat(self, question: str) -> tuple[str, list]:
+        """Blocking chat method."""
+        messages, sources, _ = self._prepare_chat_context(question)
+        
+        if not messages:
+             return "I don't have any information about this codebase. Please make sure the codebase has been indexed properly.", []
+
+        # Get response from LLM
+        response_msg = self.llm.invoke(messages)
+        answer = response_msg.content
+        
+        # Update chat history
+        self.chat_history.append(HumanMessage(content=question))
+        self.chat_history.append(AIMessage(content=answer))
+        
+        # Keep history manageable (last 20 messages)
+        if len(self.chat_history) > 20:
+            self.chat_history = self.chat_history[-20:]
+        
+        return answer, sources
+
+    def stream_chat(self, question: str):
+        """Streaming chat method returning (generator, sources)."""
+        messages, sources, _ = self._prepare_chat_context(question)
+        
+        if not messages:
+            def empty_gen(): yield "I don't have any information about this codebase."
+            return empty_gen(), []
+
+        # Update history with USER message immediately
+        self.chat_history.append(HumanMessage(content=question))
+        if len(self.chat_history) > 20: self.chat_history = self.chat_history[-20:]
+        
+        # Generator wrapper to capture full response for history
+        def response_generator():
+            full_response = ""
+            for chunk in self.llm.stream(messages):
+                content = chunk.content
+                full_response += content
+                yield content
             
-            # Build context from documents
-            context_text = "\n\n".join([
-                f"File: {doc.metadata.get('file_path', 'unknown')}\n{doc.page_content[:500]}..."
-                for doc in docs[:5]  # Limit to top 5 docs
-            ])
+            # Update history with AI message after generation
+            self.chat_history.append(AIMessage(content=full_response))
             
-            # Extract sources
-            sources = []
-            for doc in docs[:5]:
-                file_path = doc.metadata.get("file_path") or doc.metadata.get("source", "unknown")
-                sources.append({
-                    "file_path": file_path,
-                    "url": doc.metadata.get("url", f"file://{file_path}"),
-                })
+        return response_generator(), sources
             
-            # Build prompt with history - use provider-specific prompt
-            from code_chatbot.prompts import get_prompt_for_provider
-            base_prompt = get_prompt_for_provider("linear_rag", self.provider)
-            qa_system_prompt = base_prompt.format(
-                repo_name=self.repo_name,
-                context=context_text
-            )
-            
-            # Build messages with history
-            messages = [SystemMessage(content=qa_system_prompt)]
-            
-            # Add chat history
-            for msg in self.chat_history[-10:]:  # Last 10 messages for context
-                messages.append(msg)
-            
-            # Add current question
-            messages.append(HumanMessage(content=question))
-            
-            # Get response from LLM
-            response_msg = self.llm.invoke(messages)
-            answer = response_msg.content
-            
-            # Update chat history
-            self.chat_history.append(HumanMessage(content=question))
-            self.chat_history.append(AIMessage(content=answer))
-            
-            # Keep history manageable (last 20 messages)
-            if len(self.chat_history) > 20:
-                self.chat_history = self.chat_history[-20:]
-            
-            return answer, sources
-            
-        except Exception as e:
-            logger.error(f"Error during chat: {e}", exc_info=True)
-            return f"Error: {str(e)}", []
-    
     def clear_memory(self):
         """Clear the conversation history."""
         self.chat_history.clear()
