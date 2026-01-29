@@ -363,6 +363,30 @@ class ChatEngine:
             return f"Error: {str(e)}", []
     
     def _linear_chat(self, question: str) -> Tuple[str, List[dict]]:
+        """Linear RAG fallback."""
+        messages, sources, _ = self._prepare_chat_context(question)
+        
+        if not messages:
+             return "I don't have any information about this codebase. Please make sure the codebase has been indexed properly.", []
+
+        # Get response from LLM
+        try:
+            response_msg = self.llm.invoke(messages)
+            answer = response_msg.content
+        except Exception as e:
+            logger.error(f"Error in linear chat invoke: {e}")
+            return f"Error consuming LLM: {e}", []
+        
+        # Update chat history
+        self.chat_history.append(HumanMessage(content=question))
+        self.chat_history.append(AIMessage(content=answer))
+        
+        # Keep history manageable (last 20 messages)
+        if len(self.chat_history) > 20:
+            self.chat_history = self.chat_history[-20:]
+        
+        return answer, sources
+
     def _generate_file_tree_str(self):
         """Generate a string representation of the file tree."""
         if not self.repo_files:
