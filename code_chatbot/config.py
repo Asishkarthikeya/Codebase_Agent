@@ -80,7 +80,13 @@ class IndexingConfig:
     
     ignore_patterns: List[str] = field(default_factory=lambda: [
         '*.pyc', '__pycache__/*', '.git/*', 'node_modules/*',
-        '.venv/*', 'venv/*', '*.egg-info/*', 'dist/*', 'build/*'
+        '.venv/*', 'venv/*', '*.egg-info/*', 'dist/*', 'build/*',
+        # Non-code files that pollute search results
+        'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
+        '*.lock', '*.log', '*.sqlite3', '*.db',
+        '*.min.js', '*.min.css', '*.map',
+        '.env*', '*.pem', '*.key',
+        'coverage/*', '.coverage', '.nyc_output/*'
     ])
     """File patterns to ignore during indexing"""
     

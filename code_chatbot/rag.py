@@ -288,8 +288,8 @@ class ChatEngine:
                 
                 # Contextualize with history
                 # Use comprehensive system prompt for high-quality answers
-                from code_chatbot.prompts import SYSTEM_PROMPT_AGENT
-                sys_content = SYSTEM_PROMPT_AGENT.format(repo_name=self.repo_name)
+                from code_chatbot.prompts import get_prompt_for_provider
+                sys_content = get_prompt_for_provider("system_agent", self.provider).format(repo_name=self.repo_name)
                 system_msg = SystemMessage(content=sys_content)
                 
                 # Token Optimization: Only pass last 4 messages (2 turns) to keep context light.
@@ -396,15 +396,12 @@ class ChatEngine:
                     "url": doc.metadata.get("url", f"file://{file_path}"),
                 })
             
-            # Build prompt with history
-            qa_system_prompt = (
-                f"You are a Code Chatbot, an expert software engineering assistant helping me quickly understand "
-                f"a codebase called {self.repo_name}.\n"
-                "Assume I am an advanced developer and answer my questions in the most succinct way possible.\n"
-                "Always provide code examples where relevant.\n"
-                "Link your answers to specific files if possible.\n\n"
-                "Here are some snippets from the codebase:\n\n"
-                f"{context_text}"
+            # Build prompt with history - use provider-specific prompt
+            from code_chatbot.prompts import get_prompt_for_provider
+            base_prompt = get_prompt_for_provider("linear_rag", self.provider)
+            qa_system_prompt = base_prompt.format(
+                repo_name=self.repo_name,
+                context=context_text
             )
             
             # Build messages with history

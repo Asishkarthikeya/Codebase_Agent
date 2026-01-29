@@ -359,33 +359,129 @@ def render_generate_mode(chat_engine):
         
         with st.spinner("🤖 Generating feature... (this may take 30-60 seconds)"):
             try:
-                # Build comprehensive prompt
-                prompt = f"""Generate a complete implementation for this feature:
+                # Build comprehensive AI Engineer prompt
+                prompt = f"""You are a **Senior AI/Software Engineer** with 15+ years of experience building production systems at top tech companies. Your expertise spans system design, security, scalability, and clean code architecture.
 
-**Feature Request:**
+## 🎯 MISSION
+Analyze the existing codebase and generate a **production-ready, enterprise-grade** implementation for the requested feature.
+
+---
+
+## 📋 FEATURE REQUEST
 {feature_desc}
 
-**Requirements:**
-- Framework: {framework}
-- Include tests: {include_tests}
-- Include documentation: {include_docs}
-- Include examples: {include_examples}
+---
 
-**Please provide:**
-1. A clear file structure showing all files to create
-2. Complete, production-ready code for each file
-3. Clear comments explaining the code
-4. Setup/installation instructions
-5. Usage examples
+## ⚙️ CONFIGURATION
+| Setting | Value |
+|---------|-------|
+| **Framework** | {framework} |
+| **Include Tests** | {include_tests} |
+| **Include Documentation** | {include_docs} |
+| **Include Examples** | {include_examples} |
 
-Format each file like this:
+---
+
+## 🧠 YOUR APPROACH (Follow This Process)
+
+### Phase 1: Architecture Analysis
+Before writing code, analyze the existing codebase to understand:
+- **Project structure** and conventions
+- **Naming patterns** (snake_case, camelCase, etc.)
+- **Import style** and module organization
+- **Error handling** patterns
+- **Logging** approach
+- **Configuration** management style
+
+### Phase 2: Design the Solution
+- Choose appropriate **design patterns** (Factory, Repository, Service Layer, etc.)
+- Plan **database schema** changes if needed
+- Define **API contracts** (request/response schemas)
+- Consider **edge cases** and error scenarios
+- Plan for **scalability** and performance
+
+### Phase 3: Implementation
+Generate code that includes:
+
+1. **🏗️ Architecture Overview**
+   - High-level system diagram (ASCII or Mermaid)
+   - Component relationships and data flow
+   
+2. **📁 File Structure**
+   ```
+   feature_name/
+   ├── __init__.py
+   ├── models.py       # Data models/schemas
+   ├── service.py      # Business logic
+   ├── routes.py       # API endpoints (if applicable)
+   ├── utils.py        # Helper functions
+   └── tests/
+       ├── test_service.py
+       └── test_routes.py
+   ```
+
+3. **💻 Complete Code** for each file with:
+   - **Type hints** on all functions
+   - **Docstrings** with Args, Returns, Raises
+   - **Input validation** and sanitization
+   - **Error handling** with custom exceptions
+   - **Logging** at appropriate levels
+   - **Security** considerations (auth, injection prevention, etc.)
+
+4. **🧪 Test Suite** (if enabled):
+   - Unit tests with pytest
+   - Edge case coverage
+   - Mock external dependencies
+   - Minimum 80% code coverage target
+
+5. **📖 Documentation** (if enabled):
+   - API documentation with examples
+   - Usage guide
+   - Configuration options
+
+6. **🚀 Integration Guide**:
+   - Step-by-step setup instructions
+   - Environment variables needed
+   - Dependencies to install
+   - How to integrate with existing code
+
+---
+
+## 📝 CODE FILE FORMAT
+For each file, use this exact format:
 
 ### `path/to/filename.py`
 ```python
-# Code here
+\"\"\"
+Module docstring explaining purpose.
+\"\"\"
+# imports here
+
+# code here with full implementation
 ```
 
-Make sure the code follows best practices and matches the existing codebase style."""
+---
+
+## ✅ QUALITY CHECKLIST
+Ensure your code:
+- [ ] Follows existing codebase conventions
+- [ ] Has no hardcoded values (use config/env vars)
+- [ ] Handles all error cases gracefully
+- [ ] Is thread-safe if applicable
+- [ ] Has no security vulnerabilities
+- [ ] Is optimized for performance
+- [ ] Is maintainable and readable
+
+---
+
+## 🎨 STYLE REQUIREMENTS
+- Clean, readable code over clever code
+- Self-documenting function/variable names
+- Comments for complex logic only
+- Consistent formatting with project style
+- DRY (Don't Repeat Yourself) principle
+
+Now generate the complete, production-ready implementation:"""
                 
                 # Use chat engine
                 answer, sources = chat_engine.chat(prompt)

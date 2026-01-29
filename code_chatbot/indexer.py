@@ -13,6 +13,39 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Vector database fallback priority order
+# When primary DB fails, automatically try the next in list
+VECTOR_DB_FALLBACK_ORDER = ["chroma", "faiss"]
+
+# Track which vector DB is currently active (for automatic fallback)
+_active_vector_db = {"type": "chroma", "fallback_count": 0}
+
+def get_active_vector_db() -> str:
+    """Get the currently active vector database type."""
+    return _active_vector_db["type"]
+
+def set_active_vector_db(db_type: str):
+    """Set the active vector database type."""
+    _active_vector_db["type"] = db_type
+    logger.info(f"Active vector database set to: {db_type}")
+
+def get_next_fallback_db(current_db: str) -> Optional[str]:
+    """Get the next fallback vector database in the priority order.
+    
+    Args:
+        current_db: Current vector database type that failed
+        
+    Returns:
+        Next vector database type to try, or None if no more fallbacks
+    """
+    try:
+        current_idx = VECTOR_DB_FALLBACK_ORDER.index(current_db)
+        if current_idx + 1 < len(VECTOR_DB_FALLBACK_ORDER):
+            return VECTOR_DB_FALLBACK_ORDER[current_idx + 1]
+    except ValueError:
+        pass
+    return None
+
 # Global ChromaDB client cache to avoid "different settings" error
 _chroma_clients = {}
 
@@ -23,7 +56,13 @@ def reset_chroma_clients():
     logger.info("Reset ChromaDB client cache")
 
 def get_chroma_client(persist_directory: str):
-    """Get or create a shared ChromaDB client for a given path."""
+    """Get or create a shared ChromaDB client for a given path.
+    
+    Includes automatic recovery for common ChromaDB errors:
+    - tenant default_tenant connection errors
+    - Database corruption
+    - Version mismatch issues
+    """
     global _chroma_clients
     
     # Ensure directory exists
@@ -33,28 +72,64 @@ def get_chroma_client(persist_directory: str):
         import chromadb
         from chromadb.config import Settings
         
-        try:
-            _chroma_clients[persist_directory] = chromadb.PersistentClient(
+        def create_client():
+            """Helper to create a new ChromaDB client."""
+            return chromadb.PersistentClient(
                 path=persist_directory,
                 settings=Settings(
                     anonymized_telemetry=False,
                     allow_reset=True
                 )
             )
-        except Exception as e:
-            logger.error(f"Failed to create ChromaDB client: {e}")
-            # Try to reset and create fresh
+        
+        def clear_and_recreate():
+            """Clear corrupted database and create fresh client."""
+            logger.warning(f"Clearing corrupted ChromaDB at {persist_directory} and recreating...")
             import shutil
             if os.path.exists(persist_directory):
                 shutil.rmtree(persist_directory)
             os.makedirs(persist_directory, exist_ok=True)
-            _chroma_clients[persist_directory] = chromadb.PersistentClient(
-                path=persist_directory,
-                settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True
-                )
-            )
+            return create_client()
+        
+        def is_corruption_error(error: Exception) -> bool:
+            """Check if error indicates database corruption."""
+            error_str = str(error).lower()
+            corruption_indicators = [
+                'tenant',           # "Could not connect to tenant default_tenant"
+                'default_tenant',
+                'sqlite',           # SQLite database issues
+                'database',
+                'corrupt',
+                'no such table',
+                'disk i/o error',
+                'malformed',
+                'locked',
+            ]
+            return any(indicator in error_str for indicator in corruption_indicators)
+        
+        try:
+            _chroma_clients[persist_directory] = create_client()
+            # Verify the client works by attempting a simple operation
+            try:
+                _chroma_clients[persist_directory].heartbeat()
+            except Exception as verify_error:
+                if is_corruption_error(verify_error):
+                    logger.error(f"ChromaDB verification failed: {verify_error}")
+                    del _chroma_clients[persist_directory]
+                    _chroma_clients[persist_directory] = clear_and_recreate()
+                else:
+                    raise
+        except Exception as e:
+            logger.error(f"Failed to create ChromaDB client: {e}")
+            if is_corruption_error(e):
+                _chroma_clients[persist_directory] = clear_and_recreate()
+            else:
+                # For non-corruption errors, still try to recover
+                try:
+                    _chroma_clients[persist_directory] = clear_and_recreate()
+                except Exception as recovery_error:
+                    logger.error(f"Recovery also failed: {recovery_error}")
+                    raise recovery_error
     
     return _chroma_clients[persist_directory]
 
@@ -155,23 +230,44 @@ class Indexer:
              
         all_chunks = filter_complex_metadata(all_chunks)
 
-        if vector_db_type == "chroma":
-            # Use shared client to avoid "different settings" error
-            chroma_client = get_chroma_client(self.persist_directory)
+        # Attempt indexing with fallback support
+        attempted_db = vector_db_type
+        fallback_triggered = False
+        
+        try:
+            if vector_db_type == "chroma":
+                # Use shared client to avoid "different settings" error
+                chroma_client = get_chroma_client(self.persist_directory)
+                
+                vectordb = Chroma(
+                    client=chroma_client,
+                    embedding_function=self.embedding_function,
+                    collection_name=collection_name
+                )
+            elif vector_db_type == "faiss":
+                from langchain_community.vectorstores import FAISS
+                # FAISS is in-memory by default, we'll save it to disk later
+                vectordb = None # We build it in the loop
+            elif vector_db_type == "qdrant":
+                 vectordb = None # Built in bulk later
+            else:
+                 raise ValueError(f"Unsupported Vector DB: {vector_db_type}")
+        except Exception as e:
+            error_str = str(e).lower()
+            is_chroma_error = any(indicator in error_str for indicator in [
+                'tenant', 'default_tenant', 'sqlite', 'corrupt', 
+                'no such table', 'locked', 'database'
+            ])
             
-            vectordb = Chroma(
-                client=chroma_client,
-                embedding_function=self.embedding_function,
-                collection_name=collection_name
-            )
-        elif vector_db_type == "faiss":
-            from langchain_community.vectorstores import FAISS
-            # FAISS is in-memory by default, we'll save it to disk later
-            vectordb = None # We build it in the loop
-        elif vector_db_type == "qdrant":
-             vectordb = None # Built in bulk later
-        else:
-             raise ValueError(f"Unsupported Vector DB: {vector_db_type}")
+            if is_chroma_error and vector_db_type == "chroma":
+                logger.warning(f"Chroma indexing failed: {e}. Falling back to FAISS...")
+                fallback_triggered = True
+                attempted_db = "faiss"
+                # Clear the corrupted chroma first
+                reset_chroma_clients()
+                vectordb = None  # Will use FAISS path
+            else:
+                raise
         
         # Batch processing - smaller batches to avoid rate limits
         batch_size = 20  # Reduced for free tier rate limits
@@ -183,11 +279,14 @@ class Indexer:
         import time
         
         # FAISS handles batching poorly if we want to save incrementally, so we build a list first for FAISS or use from_documents
-        if vector_db_type == "faiss":
+        if vector_db_type == "faiss" or (fallback_triggered and attempted_db == "faiss"):
              from langchain_community.vectorstores import FAISS
              # For FAISS, it's faster to just do it all at once or in big batches
+             logger.info(f"Indexing with FAISS (fallback={fallback_triggered})...")
              vectordb = FAISS.from_documents(all_chunks, self.embedding_function)
              vectordb.save_local(folder_path=self.persist_directory, index_name=collection_name)
+             set_active_vector_db("faiss")
+             logger.info(f"Saved FAISS index to {self.persist_directory}/{collection_name}")
              return vectordb
 
         elif vector_db_type == "qdrant":
@@ -240,9 +339,85 @@ class Indexer:
         return vectordb
 
     def get_retriever(self, collection_name: str = "codebase", k: int = 10, vector_db_type: str = "chroma"):
-        """Get a retriever for the specified collection. Default k=10 for comprehensive results."""
+        """Get a retriever for the specified collection with automatic fallback.
+        
+        When the primary vector database fails, automatically attempts the next
+        database in the fallback order (chroma -> faiss).
+        
+        Args:
+            collection_name: Name of the collection to retrieve from
+            k: Number of results to return (default 10)
+            vector_db_type: Primary vector database type to try
+            
+        Returns:
+            Configured retriever with fallback protection
+        """
         logger.info(f"Creating retriever for collection '{collection_name}' from {self.persist_directory}")
         
+        # Track attempts for fallback
+        attempted_dbs = []
+        last_error = None
+        current_db = vector_db_type
+        
+        while current_db and current_db not in attempted_dbs:
+            attempted_dbs.append(current_db)
+            
+            try:
+                vector_store = self._create_vector_store(current_db, collection_name)
+                
+                if vector_store:
+                    # Success! Update active DB and return retriever
+                    set_active_vector_db(current_db)
+                    retriever = vector_store.as_retriever(search_kwargs={"k": k})
+                    logger.info(f"Retriever created with k={k} using {current_db}")
+                    return retriever
+                    
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+                
+                # Check if this is a recoverable error that warrants fallback
+                is_chroma_error = any(indicator in error_str for indicator in [
+                    'tenant', 'default_tenant', 'sqlite', 'corrupt', 
+                    'no such table', 'locked', 'database'
+                ])
+                
+                if is_chroma_error or 'chroma' in error_str:
+                    logger.warning(f"Vector DB '{current_db}' failed: {e}")
+                    
+                    # Try next fallback
+                    next_db = get_next_fallback_db(current_db)
+                    if next_db:
+                        logger.info(f"Attempting fallback to '{next_db}'...")
+                        current_db = next_db
+                        continue
+                
+                # Non-recoverable error
+                logger.error(f"Vector DB '{current_db}' failed with non-recoverable error: {e}")
+                break
+        
+        # All fallbacks exhausted
+        if last_error:
+            raise RuntimeError(
+                f"All vector database options failed. Attempted: {attempted_dbs}. "
+                f"Last error: {last_error}"
+            )
+        else:
+            raise ValueError(f"No valid vector database available. Attempted: {attempted_dbs}")
+    
+    def _create_vector_store(self, vector_db_type: str, collection_name: str):
+        """Create a vector store instance for the given database type.
+        
+        Args:
+            vector_db_type: Type of vector database (chroma, faiss, qdrant)
+            collection_name: Name of the collection
+            
+        Returns:
+            Vector store instance
+            
+        Raises:
+            Exception: If vector store creation fails
+        """
         if vector_db_type == "chroma":
             # Use shared client to avoid "different settings" error
             chroma_client = get_chroma_client(self.persist_directory)
@@ -254,49 +429,105 @@ class Indexer:
                 embedding_function=self.embedding_function,
             )
             
-            # Log collection info
+            # Verify the store works by getting count
             try:
                 collection = vector_store._collection
                 count = collection.count()
                 logger.info(f"Collection '{collection_name}' has {count} documents")
+                
+                if count == 0:
+                    logger.warning(f"Chroma collection '{collection_name}' is empty!")
+                    
             except Exception as e:
-                logger.warning(f"Could not get collection count: {e}")
+                # Re-raise to trigger fallback
+                raise RuntimeError(f"Chroma verification failed: {e}")
+                
+            return vector_store
                 
         elif vector_db_type == "faiss":
             from langchain_community.vectorstores import FAISS
-            try:
-                vector_store = FAISS.load_local(
-                    folder_path=self.persist_directory, 
-                    embeddings=self.embedding_function,
-                    index_name=collection_name,
-                    allow_dangerous_deserialization=True # Codebase trust assumed for local use
-                )
-                logger.info(f"Loaded FAISS index from {self.persist_directory}")
-            except Exception as e:
-                logger.error(f"Failed to load FAISS index: {e}")
-                # Create empty store if failed? Or raise?
-                raise e
+            
+            faiss_index_path = os.path.join(self.persist_directory, f"{collection_name}.faiss")
+            faiss_pkl_path = os.path.join(self.persist_directory, f"{collection_name}.pkl")
+            
+            # Check if FAISS index exists
+            if not os.path.exists(faiss_index_path) and not os.path.exists(faiss_pkl_path):
+                # Try default naming convention
+                faiss_index_path = os.path.join(self.persist_directory, "index.faiss")
+                faiss_pkl_path = os.path.join(self.persist_directory, "index.pkl")
+            
+            if not os.path.exists(faiss_index_path):
+                logger.warning(f"No FAISS index found at {self.persist_directory}, will need to re-index")
+                # We could trigger re-indexing here or raise to try next fallback
+                raise FileNotFoundError(f"FAISS index not found at {self.persist_directory}")
+            
+            vector_store = FAISS.load_local(
+                folder_path=self.persist_directory, 
+                embeddings=self.embedding_function,
+                index_name=collection_name,
+                allow_dangerous_deserialization=True
+            )
+            logger.info(f"Loaded FAISS index from {self.persist_directory}")
+            return vector_store
+            
         elif vector_db_type == "qdrant":
-             from langchain_qdrant import QdrantVectorStore
-             
-             url = os.getenv("QDRANT_URL")
-             api_key = os.getenv("QDRANT_API_KEY")
-             
-             vector_store = QdrantVectorStore(
-                 client=None, # It will create one from url/api_key
-                 collection_name=collection_name,
-                 embedding=self.embedding_function,
-                 url=url,
-                 api_key=api_key,
-             )
-             logger.info(f"Connected to Qdrant at {url}")
-
-        else:
-             raise ValueError(f"Unsupported Vector DB: {vector_db_type}")
+            from langchain_qdrant import QdrantVectorStore
+            
+            url = os.getenv("QDRANT_URL")
+            api_key = os.getenv("QDRANT_API_KEY")
+            
+            vector_store = QdrantVectorStore(
+                client=None,
+                collection_name=collection_name,
+                embedding=self.embedding_function,
+                url=url,
+                api_key=api_key,
+            )
+            logger.info(f"Connected to Qdrant at {url}")
+            return vector_store
         
-        retriever = vector_store.as_retriever(search_kwargs={"k": k})
-        logger.info(f"Retriever created with k={k}")
-        return retriever
+        else:
+            raise ValueError(f"Unsupported Vector DB: {vector_db_type}")
+    
+    def get_retriever_with_reindex_fallback(
+        self, 
+        documents: List[Document] = None,
+        collection_name: str = "codebase", 
+        k: int = 10, 
+        vector_db_type: str = "chroma"
+    ):
+        """Get retriever with automatic re-indexing fallback.
+        
+        If the primary vector DB fails and fallback also fails to load,
+        this method will automatically re-index the documents using
+        the fallback database.
+        
+        Args:
+            documents: Documents to re-index if needed (optional)
+            collection_name: Collection name
+            k: Number of results
+            vector_db_type: Primary DB type
+            
+        Returns:
+            Configured retriever
+        """
+        try:
+            return self.get_retriever(collection_name, k, vector_db_type)
+        except (RuntimeError, FileNotFoundError) as e:
+            if documents:
+                logger.warning(f"Retriever creation failed, attempting re-index with fallback DB: {e}")
+                
+                # Get fallback DB
+                fallback_db = get_next_fallback_db(vector_db_type) or "faiss"
+                
+                # Re-index with fallback
+                logger.info(f"Re-indexing {len(documents)} documents with {fallback_db}...")
+                self.index_documents(documents, collection_name, fallback_db)
+                
+                # Try getting retriever again
+                return self.get_retriever(collection_name, k, fallback_db)
+            else:
+                raise
 
 # Add incremental indexing methods to the Indexer class
 from code_chatbot.incremental_indexing import add_incremental_indexing_methods

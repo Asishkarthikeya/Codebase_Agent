@@ -156,10 +156,16 @@ class ZIPFileManager(DataManager):
         if not os.path.exists(self.path):
             return
         
-        IGNORE_DIRS = {'__pycache__', '.git', 'node_modules', 'venv', '.venv', '.env'}
+        IGNORE_DIRS = {'__pycache__', '.git', 'node_modules', 'venv', '.venv', '.env', 'dist', 'build'}
         IGNORE_EXTENSIONS = {
             '.pyc', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.mp4', '.mov', 
-            '.zip', '.tar', '.gz', '.pdf', '.exe', '.bin', '.pkl', '.npy', '.pt', '.pth'
+            '.zip', '.tar', '.gz', '.pdf', '.exe', '.bin', '.pkl', '.npy', '.pt', '.pth',
+            '.lock', '.log', '.sqlite3', '.db', '.min.js', '.min.css', '.map'
+        }
+        # Files to ignore by exact name (lock files, etc.)
+        IGNORE_FILES = {
+            'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock',
+            'Pipfile.lock', 'composer.lock', 'Gemfile.lock', 'Cargo.lock'
         }
         
         for root, dirs, files in os.walk(self.path):
@@ -167,6 +173,10 @@ class ZIPFileManager(DataManager):
             
             for file in files:
                 if file.startswith('.'):
+                    continue
+                
+                # Skip ignored files by name
+                if file in IGNORE_FILES:
                     continue
                 
                 file_path = os.path.join(root, file)
@@ -204,10 +214,16 @@ class LocalDirectoryManager(DataManager):
     
     def walk(self, get_content: bool = True) -> Generator[Tuple[Any, Dict], None, None]:
         """Walks local directory."""
-        IGNORE_DIRS = {'__pycache__', '.git', 'node_modules', 'venv', '.venv', '.env'}
+        IGNORE_DIRS = {'__pycache__', '.git', 'node_modules', 'venv', '.venv', '.env', 'dist', 'build'}
         IGNORE_EXTENSIONS = {
             '.pyc', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.mp4', '.mov', 
-            '.zip', '.tar', '.gz', '.pdf', '.exe', '.bin', '.pkl', '.npy', '.pt', '.pth'
+            '.zip', '.tar', '.gz', '.pdf', '.exe', '.bin', '.pkl', '.npy', '.pt', '.pth',
+            '.lock', '.log', '.sqlite3', '.db', '.min.js', '.min.css', '.map'
+        }
+        # Files to ignore by exact name (lock files, etc.)
+        IGNORE_FILES = {
+            'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock',
+            'Pipfile.lock', 'composer.lock', 'Gemfile.lock', 'Cargo.lock'
         }
         
         for root, dirs, files in os.walk(self.path):
@@ -215,6 +231,10 @@ class LocalDirectoryManager(DataManager):
             
             for file in files:
                 if file.startswith('.'):
+                    continue
+                
+                # Skip ignored files by name
+                if file in IGNORE_FILES:
                     continue
                 
                 file_path = os.path.join(root, file)
