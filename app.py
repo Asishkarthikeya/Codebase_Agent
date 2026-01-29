@@ -301,6 +301,50 @@ css = """
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
+    /* -------------------------------------------------------------------------- */
+    /*                         IDE-STYLE PANEL LAYOUT                            */
+    /* -------------------------------------------------------------------------- */
+    
+    /* Main content area - fixed height */
+    .main .block-container {
+        max-height: calc(100vh - 80px);
+        overflow: hidden;
+        padding-top: 1rem;
+    }
+    
+    /* Make columns scrollable independently */
+    [data-testid="column"] {
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: #475569 transparent;
+    }
+    
+    /* Custom scrollbar for webkit browsers */
+    [data-testid="column"]::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    [data-testid="column"]::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    
+    [data-testid="column"]::-webkit-scrollbar-thumb {
+        background: #475569;
+        border-radius: 3px;
+    }
+    
+    [data-testid="column"]::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+    }
+    
+    /* Code viewer specific - scrollable code block */
+    .stCode {
+        max-height: 60vh;
+        overflow-y: auto !important;
+    }
+    
 </style>
 """
 
