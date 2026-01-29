@@ -424,7 +424,7 @@ with st.sidebar:
                 # Use the new progress-tracked indexer
                 from code_chatbot.indexing_progress import index_with_progress
                 
-                chat_engine, success = index_with_progress(
+                chat_engine, success, repo_files, workspace_root = index_with_progress(
                     source_input=source_input,
                     source_type=source_type,
                     provider=provider,
@@ -439,6 +439,8 @@ with st.sidebar:
                 if success:
                     st.session_state.chat_engine = chat_engine
                     st.session_state.processed_files = True
+                    st.session_state.indexed_files = repo_files  # For file tree
+                    st.session_state.workspace_root = workspace_root  # For relative paths
                     time.sleep(0.5)  # Brief pause to show success
                     st.rerun()
 
@@ -486,11 +488,26 @@ with st.sidebar:
             st.session_state.chat_engine = None
             st.rerun()
 
-# Main Chat Interface
+# ============================================================================
+# MAIN 3-PANEL LAYOUT
+# ============================================================================
+
 st.title("🕷️ Code Crawler")
 
-# Multi-Mode Interface
-if st.session_state.processed_files:
+if not st.session_state.processed_files:
+    # Show onboarding message when no files are processed
+    st.info("👈 Please upload and index a codebase (ZIP, GitHub, or Web URL) to start.")
+    st.markdown("""
+    ### 🚀 Getting Started
+    1. **Configure** your API key in the sidebar
+    2. **Upload** a ZIP file, enter a GitHub URL, or Web documentation URL
+    3. **Index** your codebase with one click
+    4. **Explore** your code with the file explorer and chat interface
+    """)
+else:
+    # 3-Panel Layout: File Tree | Code Viewer | Chat/Tools
+    from components.file_explorer import render_file_tree, get_indexed_files_from_session
+    from components.code_viewer import render_code_viewer_simple
     from components.multi_mode import (
         render_mode_selector,
         render_chat_mode,
@@ -499,125 +516,124 @@ if st.session_state.processed_files:
         render_generate_mode
     )
     
-    # Mode selector at the top
-    selected_mode = render_mode_selector()
+    # Initialize session state for file explorer
+    if "selected_file" not in st.session_state:
+        st.session_state.selected_file = None
+    if "indexed_files" not in st.session_state:
+        st.session_state.indexed_files = []
     
-    st.divider()
+    # Create 3 columns: File Tree (15%) | Code Viewer (45%) | Chat/Tools (40%)
+    col_tree, col_viewer, col_chat = st.columns([0.15, 0.45, 0.40])
     
-    # Render appropriate interface based on mode
-    if selected_mode == "search":
-        render_search_mode()
-    elif selected_mode == "refactor":
-        render_refactor_mode()
-    elif selected_mode == "generate":
-        render_generate_mode(st.session_state.chat_engine)
-    else:  # chat mode
-        # Show chat mode UI
-        render_chat_mode(st.session_state.chat_engine)
+    # --- LEFT PANEL: File Tree ---
+    with col_tree:
+        render_file_tree(
+            st.session_state.get("indexed_files", []),
+            st.session_state.get("workspace_root", "")
+        )
+    
+    # --- CENTER PANEL: Code Viewer ---
+    with col_viewer:
+        render_code_viewer_simple(st.session_state.get("selected_file"))
+    
+    # --- RIGHT PANEL: Chat/Tools ---
+    with col_chat:
+        # Mode selector at the top
+        selected_mode = render_mode_selector()
         
-        # Continue with standard chat interface below
-        st.caption(f"Ask questions about your uploaded project. (Using {provider}, Enhanced with AST)")
-else:
-    st.caption(f"Configure and index your codebase to get started. (Using {provider}, Enhanced with AST)")
-
-if not st.session_state.processed_files:
-    st.info("👈 Please upload and index a ZIP file to start.")
-else:
-    # Display History
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            # Render Sources if available
-            if "sources" in msg and msg["sources"]:
-                unique_sources = {}
-                for s in msg["sources"]:
-                    # Handle both dictionary and string formats for sources
-                    if isinstance(s, dict):
-                        fp = s.get('file_path', 'Unknown')
-                    else:
-                        fp = str(s)
-                        
-                    if fp not in unique_sources:
-                        unique_sources[fp] = s
-
-                chips_html = '<div class="source-container" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">'
-                for fp in unique_sources:
-                    basename = os.path.basename(fp) if "/" in fp else fp
-                    chips_html += f"""
-                    <div class="source-chip" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 4px 10px; font-size: 0.85em; color: #cbd5e1; display: flex; align-items: center; gap: 6px;">
-                        <span class="source-icon">📄</span> {basename}
-                    </div>
-                    """
-                chips_html += '</div>'
-                st.markdown(chips_html, unsafe_allow_html=True)
+        st.divider()
+        
+        # Render appropriate interface based on mode
+        if selected_mode == "search":
+            render_search_mode()
+        elif selected_mode == "refactor":
+            render_refactor_mode()
+        elif selected_mode == "generate":
+            render_generate_mode(st.session_state.chat_engine)
+        else:  # chat mode
+            # Show chat mode UI
+            render_chat_mode(st.session_state.chat_engine)
+            st.caption(f"Using {provider}, Enhanced with AST")
             
-            # Use unsafe_allow_html in case any formatted content exists
-            st.markdown(msg["content"], unsafe_allow_html=True)
-
-    # Handle pending prompt from suggestion buttons
-    prompt = None
-    if st.session_state.get("pending_prompt"):
-        prompt = st.session_state.pending_prompt
-        st.session_state.pending_prompt = None  # Clear it
-    
-    # Input - also check for pending prompt
-    if not prompt:
-        prompt = st.chat_input("How does the authentication work?")
-    
-    if prompt:
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        with st.chat_message("assistant"):
-            if st.session_state.chat_engine:
-                with st.spinner("Analyzing (Graph+Vector)..."):
-                    answer_payload = st.session_state.chat_engine.chat(prompt)
-                    
-                    # Robust unpacking
-                    if isinstance(answer_payload, tuple):
-                        answer, sources = answer_payload
-                    else:
-                        answer = answer_payload
-                        sources = []
-                        
-                    if sources:
-                        # Deduplicate sources based on file_path
+            # Display History
+            for msg in st.session_state.messages:
+                with st.chat_message(msg["role"]):
+                    # Render Sources if available
+                    if "sources" in msg and msg["sources"]:
                         unique_sources = {}
-                        for s in sources:
-                            fp = s.get('file_path', 'Unknown')
+                        for s in msg["sources"]:
+                            if isinstance(s, dict):
+                                fp = s.get('file_path', 'Unknown')
+                            else:
+                                fp = str(s)
                             if fp not in unique_sources:
                                 unique_sources[fp] = s
-                        
-                        # Render Source Chips
-                        chips_html = '<div class="source-container">'
+
+                        chips_html = '<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">'
                         for fp in unique_sources:
-                            # Truncate path for display
-                            basename = os.path.basename(fp) 
+                            basename = os.path.basename(fp) if "/" in fp else fp
                             chips_html += f"""
-                            <div class="source-chip">
-                                <span class="source-icon">📄</span> {basename}
+                            <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 4px 10px; font-size: 0.85em; color: #cbd5e1;">
+                                📄 {basename}
                             </div>
                             """
                         chips_html += '</div>'
                         st.markdown(chips_html, unsafe_allow_html=True)
+                    
+                    st.markdown(msg["content"], unsafe_allow_html=True)
 
-                    st.markdown(answer)
-                    
-                    # Append full formatted content to history so it persists
-                    # We'll save the raw answer for history but re-render chips on load? 
-                    # Actually, for simplicity, let's just save the answer text. Streamlit re-runs the whole script, 
-                    # but we are storing manual history. Issues with reconstructing chips from history?
-                    # The current history loop just does st.markdown(msg["content"]).
-                    # We should probably append the chips HTML to the content if we want it to persist.
-                    
-                    # Store structured message in history
-                    # We store the raw answer and the sources list separately
-                    # This avoids baking HTML into the content string which causes rendering issues
-                    msg_data = {
-                        "role": "assistant", 
-                        "content": answer,
-                        "sources": sources if sources else []
-                    }
-                    st.session_state.messages.append(msg_data)
-            else:
-                st.error("Chat engine not initialized. Please re-index.")
+            # Handle pending prompt from suggestion buttons
+            prompt = None
+            if st.session_state.get("pending_prompt"):
+                prompt = st.session_state.pending_prompt
+                st.session_state.pending_prompt = None
+
+            # Input
+            if not prompt:
+                prompt = st.chat_input("Ask about your code...")
+
+            if prompt:
+                st.session_state.messages.append({"role": "user", "content": prompt})
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+
+                with st.chat_message("assistant"):
+                    if st.session_state.chat_engine:
+                        with st.spinner("Analyzing..."):
+                            answer_payload = st.session_state.chat_engine.chat(prompt)
+                            
+                            if isinstance(answer_payload, tuple):
+                                answer, sources = answer_payload
+                            else:
+                                answer = answer_payload
+                                sources = []
+                            
+                            if sources:
+                                unique_sources = {}
+                                for s in sources:
+                                    fp = s.get('file_path', 'Unknown')
+                                    if fp not in unique_sources:
+                                        unique_sources[fp] = s
+                                
+                                chips_html = '<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">'
+                                for fp in unique_sources:
+                                    basename = os.path.basename(fp)
+                                    chips_html += f"""
+                                    <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 4px 10px; font-size: 0.85em; color: #cbd5e1;">
+                                        📄 {basename}
+                                    </div>
+                                    """
+                                chips_html += '</div>'
+                                st.markdown(chips_html, unsafe_allow_html=True)
+
+                            st.markdown(answer)
+                            
+                            msg_data = {
+                                "role": "assistant",
+                                "content": answer,
+                                "sources": sources if sources else []
+                            }
+                            st.session_state.messages.append(msg_data)
+                    else:
+                        st.error("Chat engine not initialized. Please re-index.")
+

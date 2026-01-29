@@ -250,11 +250,13 @@ def index_with_progress(
         progress_bar.empty()
         status_text.empty()
         
-        return chat_engine, True
+        # Return chat engine and file info for file tree
+        return chat_engine, True, repo_files, local_path
         
     except Exception as e:
         st.error(f"❌ Error during indexing: {e}")
         logger.error(f"Indexing failed: {e}", exc_info=True)
         progress_bar.empty()
         status_text.empty()
-        return None, False
+        return None, False, [], ""
+
