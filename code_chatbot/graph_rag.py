@@ -31,11 +31,49 @@ class GraphEnhancedRetriever(BaseRetriever):
             logger.warning(f"No AST graph found at {graph_path}")
         return None
 
+    def _rerank_by_file_type(self, docs: List[Document]) -> List[Document]:
+        """Rerank documents to prioritize source code over config/text files."""
+        
+        # Priority weights: higher = more important
+        def get_priority(doc: Document) -> int:
+            file_path = doc.metadata.get("file_path", "").lower()
+            
+            # Highest priority: Main entry points
+            main_files = ["main.py", "app.py", "index.js", "index.ts", "server.py", "api.py"]
+            if any(file_path.endswith(f) for f in main_files):
+                return 100
+            
+            # High priority: Source code files
+            code_extensions = [".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".go", ".rs", ".cpp", ".c"]
+            if any(file_path.endswith(ext) for ext in code_extensions):
+                return 80
+            
+            # Medium priority: Config files (still useful)
+            config_extensions = [".json", ".yaml", ".yml", ".toml"]
+            if any(file_path.endswith(ext) for ext in config_extensions):
+                return 50
+            
+            # Lower priority: Text/doc files (often too generic)
+            text_extensions = [".txt", ".md", ".rst"]
+            if any(file_path.endswith(ext) for ext in text_extensions):
+                return 30
+            
+            # Default
+            return 40
+        
+        # Sort by priority (descending), keeping relative order for same priority
+        ranked = sorted(docs, key=lambda d: get_priority(d), reverse=True)
+        logger.info(f"Reranked docs: top files are {[d.metadata.get('file_path', '?').split('/')[-1] for d in ranked[:3]]}")
+        return ranked
+
     def _get_relevant_documents(self, query: str, *, run_manager=None) -> List[Document]:
         # 1. Standard Retrieval
         logger.info(f"GraphEnhancedRetriever: Querying base retriever with: '{query}'")
         docs = self.base_retriever.invoke(query)
         logger.info(f"GraphEnhancedRetriever: Base retriever returned {len(docs)} documents")
+        
+        # 2. Rerank: Prioritize source code over config/text files
+        docs = self._rerank_by_file_type(docs)
         
         if not self.graph:
             logger.warning("No AST graph available for enhancement")
