@@ -301,11 +301,12 @@ class GitHubRepoManager(DataManager):
         self.path = os.path.join(local_dir, repo_id.replace("/", "_"))
     
     def download(self) -> bool:
-        """Clones the GitHub repository."""
+        """Clones the GitHub repository. Falls back to HTTP ZIP download if git fails."""
         if os.path.exists(self.path) and os.listdir(self.path):
             logger.info(f"Repo already cloned at {self.path}")
             return True
         
+        # Try git clone first
         try:
             from git import Repo, GitCommandError
             
@@ -325,10 +326,60 @@ class GitHubRepoManager(DataManager):
             logger.info(f"Cloned {self.repo_id} to {self.path}")
             return True
         except ImportError:
-            logger.error("GitPython not installed. Install with: pip install gitpython")
-            raise
+            logger.warning("GitPython not available, falling back to HTTP download")
         except Exception as e:
-            logger.error(f"Failed to clone {self.repo_id}: {e}")
+            logger.warning(f"Git clone failed: {e}, falling back to HTTP download")
+        
+        # Fallback: Download as ZIP via GitHub API
+        try:
+            return self._download_as_zip()
+        except Exception as e:
+            logger.error(f"Failed to download {self.repo_id}: {e}")
+            return False
+    
+    def _download_as_zip(self) -> bool:
+        """Download repo as ZIP from GitHub API (fallback method)."""
+        import io
+        
+        # Download ZIP from GitHub
+        zip_url = f"https://github.com/{self.repo_id}/archive/refs/heads/main.zip"
+        logger.info(f"Downloading {self.repo_id} as ZIP from {zip_url}")
+        
+        try:
+            response = requests.get(zip_url, timeout=60)
+            if response.status_code == 404:
+                # Try 'master' branch if 'main' doesn't exist
+                zip_url = f"https://github.com/{self.repo_id}/archive/refs/heads/master.zip"
+                response = requests.get(zip_url, timeout=60)
+            
+            response.raise_for_status()
+            
+            # Extract ZIP
+            os.makedirs(self.path, exist_ok=True)
+            
+            with zipfile.ZipFile(io.BytesIO(response.content), 'r') as zip_ref:
+                # Extract to temp location first
+                temp_extract = os.path.join(self.local_dir, "_temp_extract")
+                zip_ref.extractall(temp_extract)
+                
+                # GitHub ZIPs have a top-level folder like "repo-main", move contents up
+                extracted_items = os.listdir(temp_extract)
+                if len(extracted_items) == 1 and os.path.isdir(os.path.join(temp_extract, extracted_items[0])):
+                    # Move contents of the single folder to our target path
+                    source_dir = os.path.join(temp_extract, extracted_items[0])
+                    for item in os.listdir(source_dir):
+                        shutil.move(os.path.join(source_dir, item), os.path.join(self.path, item))
+                    shutil.rmtree(temp_extract)
+                else:
+                    # Move all items directly
+                    for item in extracted_items:
+                        shutil.move(os.path.join(temp_extract, item), os.path.join(self.path, item))
+                    shutil.rmtree(temp_extract)
+            
+            logger.info(f"Downloaded and extracted {self.repo_id} to {self.path}")
+            return True
+        except Exception as e:
+            logger.error(f"HTTP download failed for {self.repo_id}: {e}")
             return False
     
     def walk(self, get_content: bool = True) -> Generator[Tuple[Any, Dict], None, None]:
