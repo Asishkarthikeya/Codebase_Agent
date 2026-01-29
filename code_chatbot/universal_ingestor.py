@@ -431,17 +431,43 @@ def process_source(source: str, extract_to: str) -> Tuple[list, str]:
     Returns:
         Tuple of (documents, local_path)
     """
-    ingestor = UniversalIngestor(source, local_dir=extract_to)
+    logger.info(f"Processing source: {source}")
+    logger.info(f"Extract destination: {extract_to}")
     
-    if not ingestor.download():
-        raise ValueError(f"Failed to download/prepare source: {source}")
+    # Ensure the extraction directory exists
+    try:
+        os.makedirs(extract_to, exist_ok=True)
+        logger.info(f"Created/verified extract directory: {extract_to}")
+    except Exception as e:
+        logger.error(f"Failed to create extract directory {extract_to}: {e}")
+        raise ValueError(f"Cannot create extraction directory: {e}")
+    
+    try:
+        ingestor = UniversalIngestor(source, local_dir=extract_to)
+        logger.info(f"Ingestor created with handler: {type(ingestor.delegate).__name__}")
+    except Exception as e:
+        logger.error(f"Failed to create ingestor: {e}")
+        raise ValueError(f"Cannot process source '{source}': {e}")
+    
+    try:
+        if not ingestor.download():
+            raise ValueError(f"Failed to download/prepare source: {source}")
+        logger.info(f"Download complete. Local path: {ingestor.local_path}")
+    except Exception as e:
+        logger.error(f"Download failed: {e}")
+        raise ValueError(f"Failed to download/prepare source: {source} - {e}")
     
     documents = []
-    for content, metadata in ingestor.walk(get_content=True):
-        documents.append(Document(
-            page_content=content,
-            metadata=metadata
-        ))
+    try:
+        for content, metadata in ingestor.walk(get_content=True):
+            documents.append(Document(
+                page_content=content,
+                metadata=metadata
+            ))
+        logger.info(f"Ingested {len(documents)} documents")
+    except Exception as e:
+        logger.error(f"Failed to walk documents: {e}")
+        raise ValueError(f"Failed to process files: {e}")
     
     return documents, ingestor.local_path
 
