@@ -15,6 +15,22 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Gemini models fallback list (tried in order)
+GEMINI_FALLBACK_MODELS = [
+    "gemini-3-flash-preview",
+    "gemini-3-pro-preview",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash-preview-09-2025",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash-lite-preview-09-2025",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-pro",
+]
+
 class ChatEngine:
     def __init__(
         self, 
@@ -39,6 +55,9 @@ class ChatEngine:
         self.use_reranking = use_reranking
         self.repo_files = repo_files
         self.repo_dir = repo_dir
+        
+        # Track current model index for fallback
+        self._gemini_model_index = 0
         
         # Initialize LLM
         self.llm = self._get_llm()
@@ -148,6 +167,8 @@ class ChatEngine:
             
             # Try each model until one works
             last_error = None
+            last_working_model = None
+            
             for model_name in GEMINI_MODELS_TO_TRY:
                 try:
                     logger.info(f"Attempting to use Gemini model: {model_name}")
@@ -157,12 +178,19 @@ class ChatEngine:
                         temperature=0.2,
                         convert_system_message_to_human=True
                     )
-                    # Test the model with a simple call
-                    llm.invoke("test")
-                    logger.info(f"Successfully initialized Gemini model: {model_name}")
+                    # Don't test the model here - it uses up quota!
+                    # Just return it and let the actual call determine if it works
+                    logger.info(f"Initialized Gemini model: {model_name}")
                     return llm
                 except Exception as e:
-                    logger.warning(f"Model {model_name} failed: {str(e)[:100]}")
+                    error_str = str(e).lower()
+                    # Check for specific error types
+                    if "not_found" in error_str or "404" in error_str:
+                        logger.warning(f"Model {model_name} not found, trying next...")
+                    elif "resource_exhausted" in error_str or "429" in error_str or "quota" in error_str:
+                        logger.warning(f"Model {model_name} rate limited, trying next...")
+                    else:
+                        logger.warning(f"Model {model_name} failed: {str(e)[:100]}")
                     last_error = e
                     continue
             
@@ -181,6 +209,49 @@ class ChatEngine:
         else:
             raise ValueError(f"Provider {self.provider} not supported. Only 'groq' and 'gemini' are supported.")
 
+    def _try_next_gemini_model(self) -> bool:
+        """
+        Try to switch to the next Gemini model in the fallback list.
+        Returns True if a new model was set, False if all models exhausted.
+        """
+        if self.provider != "gemini":
+            return False
+        
+        self._gemini_model_index += 1
+        
+        if self._gemini_model_index >= len(GEMINI_FALLBACK_MODELS):
+            logger.error("All Gemini models exhausted!")
+            return False
+        
+        next_model = GEMINI_FALLBACK_MODELS[self._gemini_model_index]
+        logger.info(f"Switching to next Gemini model: {next_model} (index {self._gemini_model_index})")
+        
+        api_key = self.api_key or os.getenv("GOOGLE_API_KEY")
+        try:
+            self.llm = ChatGoogleGenerativeAI(
+                model=next_model,
+                google_api_key=api_key,
+                temperature=0.2,
+                convert_system_message_to_human=True
+            )
+            self.model_name = next_model
+            
+            # Rebuild agent if using agents
+            if self.use_agent:
+                try:
+                    from code_chatbot.agent_workflow import create_agent_graph
+                    self.agent_executor = create_agent_graph(
+                        llm=self.llm,
+                        retriever=self.vector_retriever,
+                        code_analyzer=self.code_analyzer
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not rebuild agent: {e}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Failed to switch to model {next_model}: {e}")
+            return self._try_next_gemini_model()  # Recursively try next
 
     def _build_rag_chain(self):
         """Builds a simplified RAG chain with history-aware retrieval."""
@@ -258,7 +329,21 @@ class ChatEngine:
                 except Exception as e:
                     # Fallback for Groq/LLM Tool Errors & Rate Limits
                     error_str = str(e)
-                    if any(err in error_str for err in ["tool_use_failed", "invalid_request_error", "400", "429", "RESOURCE_EXHAUSTED"]):
+                    
+                    # Check if it's a rate limit error
+                    if any(err in error_str for err in ["429", "RESOURCE_EXHAUSTED", "quota"]):
+                        logger.warning(f"Rate limit hit on {self.model_name}: {error_str[:100]}")
+                        
+                        # Try switching to next Gemini model
+                        if self.provider == "gemini" and self._try_next_gemini_model():
+                            logger.info(f"Switched to {self.model_name}, retrying...")
+                            return self.chat(question)  # Retry with new model
+                        else:
+                            logger.warning("No more models to try, falling back to Linear RAG")
+                            return self._linear_chat(question)
+                    
+                    # Handle tool use errors
+                    if any(err in error_str for err in ["tool_use_failed", "invalid_request_error", "400"]):
                         logger.warning(f"Agent failed ({error_str}), falling back to Linear RAG.")
                         return self._linear_chat(question)
                     raise e 
@@ -267,6 +352,13 @@ class ChatEngine:
             return self._linear_chat(question)
             
         except Exception as e:
+            # Check for rate limits in outer exception too
+            error_str = str(e)
+            if any(err in error_str for err in ["429", "RESOURCE_EXHAUSTED", "quota"]):
+                if self.provider == "gemini" and self._try_next_gemini_model():
+                    logger.info(f"Switched to {self.model_name} after outer error, retrying...")
+                    return self.chat(question)
+            
             logger.error(f"Error during chat: {e}", exc_info=True)
             return f"Error: {str(e)}", []
     
