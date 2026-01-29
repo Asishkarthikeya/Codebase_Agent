@@ -414,7 +414,8 @@ class ChatEngine:
             query_for_retrieval = f"{self.chat_history[-1].content} {question}"
             
         # Increase retrieval limit to 30 docs since Gemini has large context
-        docs = self.retriever.get_relevant_documents(query_for_retrieval)
+        # FIXED: Use .invoke() instead of .get_relevant_documents() (deprecated/removed in LC 0.1)
+        docs = self.retriever.invoke(query_for_retrieval)
         
         if not docs:
             # Return empty context if no docs found
