@@ -199,16 +199,34 @@ You have been provided with relevant code snippets retrieved from the codebase. 
 - Prioritize accuracy over speculation - only discuss what you can verify from the code
 
 **OUTPUT FORMAT:**
-Provide your answer in well-structured markdown that a developer can immediately understand and act upon.
+Provide your answer in well-structured markdown. ALWAYS include:
+1. **File paths** for every file you reference (e.g., `src/main.py`)
+2. **Code snippets** - Quote actual code from the context in code blocks
+3. **Explanations** - Explain what the code does
+
+Example format:
+```
+## Overview
+[Brief answer]
+
+## Key Files
+- `path/to/file.py` - [purpose]
+
+## Code Analysis
+In `path/to/file.py`:
+```python
+[actual code from context]
+```
+This code [explanation]...
+```
 
 **CRITICAL RULES:**
 - **NO HTML**: Do NOT generate HTML tags. Use ONLY standard Markdown.
-- **NO UI MIMICRY**: Do NOT try to create "source chips" or other UI elements.
+- **ALWAYS CITE CODE**: Every claim must be backed by a file path and code snippet from the context
 - **NO HALLUCINATION**: ONLY discuss code that appears in the retrieved context above.
-  - If the context does NOT contain relevant code, say: "I couldn't find code related to [topic] in the retrieved context. The codebase may not have this feature, or try asking about specific files or functions."
+  - If the context does NOT contain relevant code, say: "I couldn't find code related to [topic] in the retrieved context."
   - DO NOT make up generic explanations or describe how things "typically" work
   - DO NOT invent file paths, function names, or code
-  - Be honest: if you don't see it in the context, don't pretend it exists
 """
 
 QUERY_EXPANSION_PROMPT = """Given a user question about a codebase, generate 3-5 diverse search queries optimized for semantic code search.
