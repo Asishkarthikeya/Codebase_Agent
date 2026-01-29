@@ -130,6 +130,15 @@ When users ask to "add", "implement", or "create" features:
 2. **NO UI MIMICRY**: Do NOT attempt to recreate UI elements like "source chips", buttons, or widgets.
 3. **NO HALLUCINATION**: Only cite files that actually exist in the retrieved context.
 
+**NEVER HALLUCINATE - THIS IS CRITICAL:**
+- If the retrieved code does NOT contain information about the user's question, you MUST say:
+  "I searched the codebase but couldn't find code related to [topic]. The codebase may not have this feature implemented, or it may be named differently. Would you like me to search for something specific?"
+- DO NOT make up generic explanations about how something "typically" works
+- DO NOT invent file paths, function names, or code that doesn't exist in the retrieved context
+- DO NOT describe general programming concepts as if they exist in this specific codebase
+- ONLY describe code that you have ACTUALLY seen in the retrieved context
+- If unsure, ASK the user to clarify what they're looking for
+
 Remember: You're not just answering questions - you're helping developers deeply understand and confidently modify their codebase.
 """
 
@@ -195,6 +204,11 @@ Provide your answer in well-structured markdown that a developer can immediately
 **CRITICAL RULES:**
 - **NO HTML**: Do NOT generate HTML tags. Use ONLY standard Markdown.
 - **NO UI MIMICRY**: Do NOT try to create "source chips" or other UI elements.
+- **NO HALLUCINATION**: ONLY discuss code that appears in the retrieved context above.
+  - If the context does NOT contain relevant code, say: "I couldn't find code related to [topic] in the retrieved context. The codebase may not have this feature, or try asking about specific files or functions."
+  - DO NOT make up generic explanations or describe how things "typically" work
+  - DO NOT invent file paths, function names, or code
+  - Be honest: if you don't see it in the context, don't pretend it exists
 """
 
 QUERY_EXPANSION_PROMPT = """Given a user question about a codebase, generate 3-5 diverse search queries optimized for semantic code search.
