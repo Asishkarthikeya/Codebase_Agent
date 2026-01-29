@@ -365,7 +365,7 @@ with st.sidebar:
             os.environ[env_key_name] = api_key
 
     # Vector Database Selection
-    vector_db_type = st.selectbox("Vector Database", ["chroma", "faiss", "qdrant"])
+    vector_db_type = st.selectbox("Vector Database", ["faiss", "chroma", "qdrant"])
     
     if vector_db_type == "qdrant":
         st.caption("☁️ connect to a hosted Qdrant cluster")

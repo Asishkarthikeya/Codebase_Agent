@@ -139,8 +139,11 @@ class Indexer:
     Indexes code files into a Vector Database.
     Now uses StructuralChunker for semantic splitting.
     """
-    def __init__(self, persist_directory: str = "chroma_db", embedding_function=None, provider: str = "gemini", api_key: str = None):
-        self.persist_directory = persist_directory
+    def __init__(self, persist_directory: str = None, embedding_function=None, provider: str = "gemini", api_key: str = None):
+        # Use /tmp for Hugging Face compatibility (they only allow writes to /tmp)
+        import tempfile
+        self.persist_directory = persist_directory or os.path.join(tempfile.gettempdir(), "vector_db")
+        os.makedirs(self.persist_directory, exist_ok=True)
         self.provider = provider
         
         # Load configuration
