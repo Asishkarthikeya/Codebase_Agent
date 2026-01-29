@@ -403,9 +403,10 @@ with st.sidebar:
     if source_type == "ZIP File":
         uploaded_file = st.file_uploader("Upload .zip file", type="zip")
         if uploaded_file:
-            # Save strictly to a temp path for processing
-            os.makedirs("data", exist_ok=True)
-            source_input = os.path.join("data", "uploaded.zip")
+            # Use /tmp for Hugging Face compatibility (they only allow writes to /tmp)
+            import tempfile
+            upload_dir = tempfile.gettempdir()
+            source_input = os.path.join(upload_dir, "uploaded.zip")
             with open(source_input, "wb") as f:
                 f.write(uploaded_file.getbuffer())
     elif source_type == "GitHub Repository":

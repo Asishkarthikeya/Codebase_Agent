@@ -45,7 +45,9 @@ def index_with_progress(
         status_text.text("📦 Stage 1/4: Extracting and ingesting files...")
         progress_bar.progress(0.05)
         
-        extract_to = os.path.join("data", "extracted")
+        # Use /tmp for Hugging Face compatibility (they only allow writes to /tmp)
+        import tempfile
+        extract_to = os.path.join(tempfile.gettempdir(), "code_chatbot_extracted")
         
         if os.path.exists(extract_to):
             status_text.text("🧹 Cleaning previous data...")
