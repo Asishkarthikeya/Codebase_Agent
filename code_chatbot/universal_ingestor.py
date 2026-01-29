@@ -56,15 +56,21 @@ class UniversalIngestor(DataManager):
     
     def _detect_handler(self) -> DataManager:
         """Detects the type of input and returns the appropriate handler."""
-        source = self.source.strip()
+        # Aggressive cleaning: strip whitespace, backslashes, and trailing slashes
+        source = self.source.strip().strip('\\').strip('/')
         
         # Check if it's a URL
         if self._is_url(source):
-            if "github.com" in source or source.count("/") == 1 and "/" in source:
+            if "github.com" in source or (source.count("/") == 1 and "/" in source):
                 # GitHub URL or repo ID (owner/repo)
                 if "github.com" in source:
+                    # Remove .git suffix if present
+                    if source.endswith(".git"):
+                        source = source[:-4]
+                        
                     # Extract repo_id from URL
                     parts = urlparse(source).path.strip("/").split("/")
+                    # Handle cases like https://github.com/owner/repo/tree/main/...
                     if len(parts) >= 2:
                         repo_id = f"{parts[0]}/{parts[1]}"
                     else:
