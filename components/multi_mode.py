@@ -64,18 +64,18 @@ def render_chat_mode(chat_engine):
         chat_engine: ChatEngine instance
     """
     st.markdown("### 💬 Chat with Your Codebase")
-    st.caption("Ask questions about your code, get explanations, and more")
+    st.caption("📚 Explain code & workflows | 🔧 Generate & modify code | ✨ Develop new features | 🔍 Fast indexed retrieval")
     
     # Show suggested prompts if no history
     if not st.session_state.get("messages", []):
         st.markdown("#### 💡 Try asking:")
         
         suggestions = [
-            "Explain how authentication works",
-            "Find all database queries",
-            "What are the main entry points?",
-            "Show me the API endpoints",
-            "Explain the data flow"
+            "How does the main module work?",
+            "Explain key functions and workflows",
+            "Generate a new utility function",
+            "Suggest improvements for the code",
+            "List all modules and their purpose"
         ]
         
         cols = st.columns(len(suggestions))
