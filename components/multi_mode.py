@@ -64,26 +64,32 @@ def render_chat_mode(chat_engine):
         chat_engine: ChatEngine instance
     """
     st.markdown("### 💬 Chat with Your Codebase")
-    st.caption("📚 Explain code & workflows | 🔧 Generate & modify code | ✨ Develop new features | 🔍 Fast indexed retrieval")
     
     # Show suggested prompts if no history
     if not st.session_state.get("messages", []):
-        st.markdown("#### 💡 Try asking:")
+        st.markdown("💡 **Try asking:**")
         
-        suggestions = [
-            "How does the main module work?",
-            "Explain key functions and workflows",
-            "Generate a new utility function",
-            "Suggest improvements for the code",
-            "List all modules and their purpose"
-        ]
+        # Row 1 - 2 suggestions
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔍 Explain project structure", key="suggest_0", use_container_width=True):
+                st.session_state.pending_prompt = "Explain the project structure and main components"
+                st.rerun()
+        with col2:
+            if st.button("📝 List all functions", key="suggest_1", use_container_width=True):
+                st.session_state.pending_prompt = "List all the main functions and their purpose"
+                st.rerun()
         
-        cols = st.columns(len(suggestions))
-        for i, suggestion in enumerate(suggestions):
-            with cols[i]:
-                if st.button(suggestion, key=f"suggest_{i}", use_container_width=True):
-                    st.session_state.pending_prompt = suggestion
-                    st.rerun()
+        # Row 2 - 2 suggestions
+        col3, col4 = st.columns(2)
+        with col3:
+            if st.button("⚡ Generate code", key="suggest_2", use_container_width=True):
+                st.session_state.pending_prompt = "Generate a new utility function for this project"
+                st.rerun()
+        with col4:
+            if st.button("🔧 Suggest improvements", key="suggest_3", use_container_width=True):
+                st.session_state.pending_prompt = "What improvements would you suggest for this code?"
+                st.rerun()
     
     # Return True to continue with normal chat flow
     return True
