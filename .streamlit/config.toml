@@ -1,3 +1,15 @@
+[server]
+# Enable CORS for Hugging Face Spaces
+enableCORS = false
+enableXsrfProtection = false
+maxUploadSize = 500
+headless = true
+address = "0.0.0.0"
+port = 7860
+
+[browser]
+gatherUsageStats = false
+
 [theme]
 base="dark"
 primaryColor="#38BDF8"
