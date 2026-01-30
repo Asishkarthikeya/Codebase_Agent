@@ -88,9 +88,10 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
+                # Revert to blocking chat for stability
                 answer_payload = chat_engine.chat(prompt)
                 
-                # Handle response format (string or tuple with sources)
+                # Handle response format
                 if isinstance(answer_payload, tuple):
                     response, sources = answer_payload
                 else:
@@ -118,7 +119,7 @@ if prompt:
                 
                 st.markdown(response)
                 
-                # Save to history with sources
+                # Save to history
                 st.session_state.messages.append({
                     "role": "assistant", 
                     "content": response,
@@ -129,3 +130,4 @@ if prompt:
                 error_msg = f"Error: {str(e)}"
                 st.error(error_msg)
                 st.session_state.messages.append({"role": "assistant", "content": error_msg})
+
