@@ -54,10 +54,20 @@ class UniversalIngestor(DataManager):
         self.local_dir = local_dir or os.path.join(tempfile.gettempdir(), "code_chatbot")
         self.delegate = self._detect_handler()
     
+    
     def _detect_handler(self) -> DataManager:
         """Detects the type of input and returns the appropriate handler."""
         # Aggressive cleaning: strip whitespace, backslashes, and trailing slashes
         source = self.source.strip().strip('\\').strip('/')
+        
+        # Smart Extraction: If input looks like garbage (has spaces, long text), try to find a URL inside it
+        if "github.com" in source and (" " in source or "\n" in source or "Error" in source):
+            import re
+            # Regex to find https://github.com/owner/repo
+            match = re.search(r'(https?://github\.com/[a-zA-Z0-9_-]+/[a-zA-Z0-9_\-\.]+)', source)
+            if match:
+                logger.info(f"Extracted GitHub URL from text: {match.group(1)}")
+                source = match.group(1).strip().strip('\\').strip('/')
         
         # Check if it's a URL
         if self._is_url(source):
