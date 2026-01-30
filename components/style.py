@@ -12,84 +12,101 @@ def apply_custom_css():
         except:
             pass
 
-    st.markdown(f"""
+    st.markdown("""
     <style>
-        :root {{
+        :root {
             --glass-bg: rgba(30, 41, 59, 0.7);
             --glass-border: rgba(255, 255, 255, 0.1);
-        }}
+        }
         
         /* Global Text */
-        p, div, span, label, h1, h2, h3, h4, h5, h6, .stMarkdown {{
+        p, div, span, label, h1, h2, h3, h4, h5, h6, .stMarkdown {
             color: #E2E8F0 !important;
-        }}
+        }
         
         /* Sidebar */
-        section[data-testid="stSidebar"] {{
+        section[data-testid="stSidebar"] {
             background: rgba(11, 12, 16, 0.95);
             border-right: 1px solid var(--glass-border);
-        }}
+        }
         
         /* Buttons */
-        .stButton button {{
+        .stButton button {
             background: linear-gradient(135deg, #0EA5E9 0%, #2563EB 100%);
             color: white !important;
             border: none;
             border-radius: 8px;
             font-weight: 600;
-        }}
-        .stButton button:hover {{
+        }
+        .stButton button:hover {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
-        }}
+        }
         
         /* Chat Messages */
-        .stChatMessage {{
+        .stChatMessage {
             background: var(--glass-bg);
             border: 1px solid var(--glass-border);
             border-radius: 12px;
-        }}
-        .stChatMessage[data-testid="stChatMessage"]:nth-child(even) {{
+        }
+        .stChatMessage[data-testid="stChatMessage"]:nth-child(even) {
             border-left: 3px solid #38BDF8;
             background: linear-gradient(90deg, rgba(56, 189, 248, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%);
-        }}
+        }
         
         /* IDE Layout & Scrolling */
-        .main .block-container {{
+        .main .block-container {
             max-width: 100% !important;
-            padding-left: 2rem;
-            padding-right: 2rem;
-            max-height: calc(100vh - 80px);
+            padding-top: 1rem !important; /* Minimized top padding */
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            max-height: 100vh;
             overflow: hidden;
-        }}
+        }
         
-        div[data-testid="column"] {{
-            max-height: calc(100vh - 120px);
+        /* Align Tabs with Editor */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2px;
+            background-color: transparent;
+        }
+        .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            white-space: pre-wrap;
+            border-radius: 4px 4px 0px 0px;
+            gap: 2px;
+            padding-top: 0px;
+            padding-bottom: 0px;
+            color: #f8fafc !important; /* Force white text */
+            font-weight: 600;
+        }
+        
+        div[data-testid="column"] {
+            max-height: calc(100vh - 60px);
             overflow-y: auto;
             overflow-x: hidden;
             scrollbar-width: thin;
-        }}
+        }
         
-        .stCode {{
-            max-height: 70vh !important;
+        .stCode {
+            max-height: 75vh !important;
             overflow-y: auto !important;
-        }}
+        }
         
         /* Scrollbar styling */
-        ::-webkit-scrollbar {{
+        ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
-        }}
-        ::-webkit-scrollbar-track {{
+        }
+        ::-webkit-scrollbar-track {
             background: transparent;
-        }}
-        ::-webkit-scrollbar-thumb {{
+        }
+        ::-webkit-scrollbar-thumb {
             background: #475569;
             border-radius: 3px;
-        }}
+        }
         
         /* Source Chips */
-        .source-chip {{
+        .source-chip {
             background: rgba(30, 41, 59, 0.4);
             border: 1px solid rgba(148, 163, 184, 0.2);
             border-radius: 6px;
@@ -101,6 +118,6 @@ def apply_custom_css():
             gap: 6px;
             margin-right: 8px;
             margin-bottom: 8px;
-        }}
+        }
     </style>
     """, unsafe_allow_html=True)

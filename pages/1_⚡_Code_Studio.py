@@ -30,8 +30,8 @@ if "processed_files" not in st.session_state or not st.session_state.processed_f
 
 # --- Layout ---
 # We use a 2-column layout: Side Panel (with Tabs) | Main Editor
-# Ratio: 3.5 : 6.5
-col_panel, col_editor = st.columns([3.5, 6.5])
+# Ratio: 3 : 7 - Narrower side panel for better proportion
+col_panel, col_editor = st.columns([3, 7])
 
 # --- Side Panel (Tabs) ---
 with col_panel:
@@ -74,6 +74,9 @@ with col_editor:
     if selected_file:
         # We use a container to ensure height consistency
         with st.container():
+            # Alignment Spacer: Matches the height of st.tabs headers (~50px)
+            st.markdown("<div style='height: 50px;'></div>", unsafe_allow_html=True)
+            
             # Breadcrumbs / File Header
             filename = os.path.basename(selected_file)
             st.caption(f"Editing: {filename}")
