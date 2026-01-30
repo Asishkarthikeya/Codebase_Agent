@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Basic Setup
-st.set_page_config(page_title="Code Chatbot", page_icon="💻", layout="wide")
+st.set_page_config(page_title="Code Chatbot", page_icon="💻", layout="wide", initial_sidebar_state="collapsed")
 logging.basicConfig(level=logging.INFO)
 
 # --- Custom CSS for Premium Slate UI ---
@@ -486,7 +486,7 @@ with st.sidebar:
                     st.session_state.indexed_files = repo_files  # For file tree
                     st.session_state.workspace_root = workspace_root  # For relative paths
                     time.sleep(0.5)  # Brief pause to show success
-                    st.rerun()
+                    st.switch_page("pages/1_⚡_Code_Studio.py")
 
     if st.session_state.processed_files:
         st.success(f"✅ Codebase Ready ({provider}) + AST 🧠")
@@ -549,50 +549,5 @@ if not st.session_state.processed_files:
     4. **Explore** your code with the file explorer and chat interface
     """)
 else:
-    # Home page - show navigation to other pages
-    st.markdown("""
-    ### 🎉 Codebase Ready!
-    
-    Your codebase has been indexed and is ready to explore. Use the pages below:
-    """)
-    
-    # Navigation cards
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 12px; padding: 20px; margin: 10px 0;">
-            <h3>📁 Explorer</h3>
-            <p style="color: #94a3b8;">Browse files and view code with syntax highlighting</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; padding: 20px; margin: 10px 0;">
-            <h3>🔍 Search</h3>
-            <p style="color: #94a3b8;">Search across all indexed files with regex support</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(34, 197, 94, 0.2); border-radius: 12px; padding: 20px; margin: 10px 0;">
-            <h3>💬 Chat</h3>
-            <p style="color: #94a3b8;">Ask questions about your code and get AI-powered answers</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(251, 191, 36, 0.2); border-radius: 12px; padding: 20px; margin: 10px 0;">
-            <h3>✨ Generate</h3>
-            <p style="color: #94a3b8;">Generate new code and modify existing files</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.info("👈 Use the sidebar to navigate between pages")
-    
-    # Quick stats
-    indexed_files = st.session_state.get("indexed_files", [])
-    if indexed_files:
-        st.markdown("---")
-        st.markdown(f"**📊 Stats:** {len(indexed_files)} files indexed")
+    # Codebase Ready! Redirect to Code Studio
+    st.switch_page("pages/1_⚡_Code_Studio.py")
