@@ -53,7 +53,12 @@ Please generate the code following the patterns and style used in this codebase.
 Include comments explaining the code."""
             
             try:
-                response = chat_engine.chat(prompt)
+                response_payload = chat_engine.chat(prompt)
+                if isinstance(response_payload, tuple):
+                    response, _ = response_payload
+                else:
+                    response = response_payload
+                    
                 st.markdown("### Generated Code")
                 st.markdown(response)
                 
@@ -93,7 +98,12 @@ elif mode == "Modify existing code":
 Show the modified code with explanations of what changed."""
             
             try:
-                response = chat_engine.chat(prompt)
+                response_payload = chat_engine.chat(prompt)
+                if isinstance(response_payload, tuple):
+                    response, _ = response_payload
+                else:
+                    response = response_payload
+                    
                 st.markdown("### Modified Code")
                 st.markdown(response)
             except Exception as e:
@@ -120,7 +130,12 @@ Generate complete, production-ready code following the patterns in this codebase
 Include proper imports, docstrings, and error handling."""
             
             try:
-                response = chat_engine.chat(prompt)
+                response_payload = chat_engine.chat(prompt)
+                if isinstance(response_payload, tuple):
+                    response, _ = response_payload
+                else:
+                    response = response_payload
+                    
                 st.markdown(f"### {file_name}")
                 st.markdown(response)
                 
