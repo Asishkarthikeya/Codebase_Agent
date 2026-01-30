@@ -374,6 +374,13 @@ class ChatEngine:
             response_msg = self.llm.invoke(messages)
             answer = response_msg.content
         except Exception as e:
+            # Check for Rate Limit in Linear Chat
+            error_str = str(e)
+            if any(err in error_str for err in ["429", "RESOURCE_EXHAUSTED", "quota"]):
+                 if self.provider == "gemini" and self._try_next_gemini_model():
+                     logger.info(f"Linear RAG: Switched to {self.model_name} due to rate limit, retrying...")
+                     return self._linear_chat(question) # Retry with new model
+            
             logger.error(f"Error in linear chat invoke: {e}")
             return f"Error consuming LLM: {e}", []
         
