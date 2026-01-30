@@ -58,7 +58,8 @@ class UniversalIngestor(DataManager):
     def _detect_handler(self) -> DataManager:
         """Detects the type of input and returns the appropriate handler."""
         # Aggressive cleaning: strip whitespace, backslashes, and trailing slashes
-        source = self.source.strip().strip('\\').strip('/')
+        # FIXED: Use rstrip for slashes/backslashes to avoid stripping leading '/' from absolute paths like /tmp/file.zip
+        source = self.source.strip().rstrip('\\').rstrip('/')
         
         # Smart Extraction: If input looks like garbage (has spaces, long text), try to find a URL inside it
         if "github.com" in source and (" " in source or "\n" in source or "Error" in source):
