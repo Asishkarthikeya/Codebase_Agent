@@ -56,33 +56,7 @@ def render_file_tree(indexed_files: List[str], base_path: str = ""):
         return
     
     # Custom CSS for tree styling
-    st.markdown("""
-    <style>
-    .tree-item {
-        padding: 2px 0;
-        cursor: pointer;
-        font-size: 13px;
-        font-family: 'Segoe UI', sans-serif;
-        color: #ccc;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .tree-item:hover {
-        background: rgba(255,255,255,0.1);
-    }
-    .tree-dir {
-        font-weight: 500;
-    }
-    .tree-file {
-        font-weight: 400;
-    }
-    .tree-selected {
-        background: rgba(56, 189, 248, 0.2) !important;
-        color: #38bdf8;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Styles are now handled globally in components/style.py for modularity
     
     st.markdown(f"**📁 Files** ({len(indexed_files)})")
     
@@ -136,7 +110,7 @@ def render_tree_items(tree: Dict, depth: int):
             
             # Render children if expanded
             if is_expanded:
-                children = {k: v for k, v in node.items() if not k.startswith("_")}
+                children = node.get("_children", {})
                 render_tree_items(children, depth + 1)
 
 

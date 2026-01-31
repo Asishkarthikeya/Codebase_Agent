@@ -319,6 +319,15 @@ class ChatEngine:
                     else:
                         answer = raw_content
                     
+                    # CLEANING: Remove hallucinated source chips
+                    import re
+                    # Remove the specific div block structure
+                    answer = re.sub(r'<div class="source-chip">.*?</div>\s*</div>', '', answer, flags=re.DOTALL)
+                    # Remove standalone chips if any remain
+                    answer = re.sub(r'<div class="source-chip">.*?</div>', '', answer, flags=re.DOTALL)
+                    # Clean up leading whitespace/newlines left behind
+                    answer = answer.strip()
+
                     # Update history
                     self.chat_history.append(HumanMessage(content=question))
                     self.chat_history.append(AIMessage(content=answer))
