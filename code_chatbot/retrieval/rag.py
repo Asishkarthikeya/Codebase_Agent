@@ -488,26 +488,6 @@ class ChatEngine:
         
         return messages, sources, context_text
 
-    def chat(self, question: str) -> tuple[str, list]:
-        """Blocking chat method."""
-        messages, sources, _ = self._prepare_chat_context(question)
-        
-        if not messages:
-             return "I don't have any information about this codebase. Please make sure the codebase has been indexed properly.", []
-
-        # Get response from LLM
-        response_msg = self.llm.invoke(messages)
-        answer = response_msg.content
-        
-        # Update chat history
-        self.chat_history.append(HumanMessage(content=question))
-        self.chat_history.append(AIMessage(content=answer))
-        
-        # Keep history manageable (last 20 messages)
-        if len(self.chat_history) > 20:
-            self.chat_history = self.chat_history[-20:]
-        
-        return answer, sources
 
     def stream_chat(self, question: str):
         """Streaming chat method returning (generator, sources)."""
@@ -530,7 +510,8 @@ class ChatEngine:
                 yield content
             
             # Update history with AI message after generation
-            self.chat_history.append(AIMessage(content=full_response))
+            clean_full_response = self._clean_response(full_response)
+            self.chat_history.append(AIMessage(content=clean_full_response))
             
         return response_generator(), sources
             
