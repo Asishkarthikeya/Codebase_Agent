@@ -53,7 +53,8 @@ with st.sidebar:
 
 if layout_mode == "Tabs (Full Width)":
     # TABBED LAYOUT (Default)
-    tab_chat, tab_code, tab_agent, tab_search = st.tabs(["💬 Chat", "📝 Code Editor", "✨ Agent", "🔍 Search"])
+    # Renamed "Agent" to "Refactor" for clarity
+    tab_chat, tab_code, tab_refactor, tab_search = st.tabs(["💬 Chat", "📝 Code Editor", "✨ Refactor", "🔍 Search"])
     
     with tab_chat:
         chat_engine = st.session_state.get("chat_engine")
@@ -71,7 +72,7 @@ if layout_mode == "Tabs (Full Width)":
         else:
             st.info("👈 Select a file from the sidebar to view code.")
             
-    with tab_agent:
+    with tab_refactor:
         chat_engine = st.session_state.get("chat_engine")
         if chat_engine:
             render_generate_panel(chat_engine, st.session_state.get("indexed_files", []))

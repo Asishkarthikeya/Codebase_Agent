@@ -194,13 +194,13 @@ def render_search_panel(indexed_files):
 
 def render_generate_panel(chat_engine, indexed_files):
     """
-    Renders the Generate/Modify interface.
+    Renders the Refactor/Generate interface.
     """
-    st.markdown("### ✨ Generate")
+    st.markdown("### ✨ Refactor & Generate")
     
     mode = st.radio(
         "Mode",
-        ["New Code", "Modify", "New File"],
+        ["Refactor", "New Code", "New File"],
         horizontal=True,
         label_visibility="collapsed"
     )
@@ -222,8 +222,8 @@ def render_generate_panel(chat_engine, indexed_files):
                 except Exception as e:
                     st.error(str(e))
 
-    elif mode == "Modify":
-        st.caption("Modify existing file")
+    if mode == "Refactor":
+        st.caption("Refactor or modify existing files")
         # Ensure we have files
         if not indexed_files:
             st.error("No files indexed.")
