@@ -322,10 +322,11 @@ def apply_custom_css():
         }
         
         /* Make columns scrollable independently */
+        /* Make columns scrollable independently */
         [data-testid="column"] {
             max-height: calc(100vh - 120px);
             overflow-y: auto;
-            overflow-x: hidden;
+            overflow-x: auto; /* Changed from hidden to auto to prevent cutoff */
             scrollbar-width: thin;
             scrollbar-color: #475569 transparent;
         }
@@ -333,6 +334,7 @@ def apply_custom_css():
         /* Custom scrollbar for webkit browsers */
         [data-testid="column"]::-webkit-scrollbar {
             width: 6px;
+            height: 6px; /* Added height for horizontal scrollbar */
         }
         
         [data-testid="column"]::-webkit-scrollbar-track {
@@ -352,6 +354,7 @@ def apply_custom_css():
         .stCode {
             max-height: 60vh;
             overflow-y: auto !important;
+            overflow-x: auto !important; /* Ensure horizontal scroll works */
         }
 
         /* -------------------------------------------------------------------------- */
