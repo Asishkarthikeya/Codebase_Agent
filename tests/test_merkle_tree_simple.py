@@ -2,7 +2,7 @@
 Test script for Merkle tree change detection.
 """
 
-from code_chatbot.merkle_tree import MerkleTree
+from code_chatbot.ingestion.merkle_tree import MerkleTree
 from pathlib import Path
 import tempfile
 import shutil

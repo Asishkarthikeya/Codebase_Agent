@@ -80,7 +80,7 @@ def render_tree_items(tree: Dict, depth: int):
     
     for name, node in sorted_items:
         is_file = node.get("_type") == "file"
-        indent = "│  " * depth
+        indent = "│ " * depth # Compact indent for sidebar
         
         if is_file:
             # File item

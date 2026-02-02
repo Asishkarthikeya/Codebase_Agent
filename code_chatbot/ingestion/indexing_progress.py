@@ -27,12 +27,12 @@ def index_with_progress(
     Index a codebase with detailed progress tracking.
     Returns (chat_engine, success)
     """
-    from code_chatbot.universal_ingestor import process_source
-    from code_chatbot.ast_analysis import ASTGraphBuilder
-    from code_chatbot.indexer import Indexer
-    from code_chatbot.graph_rag import GraphEnhancedRetriever
-    from code_chatbot.rag import ChatEngine
-    from code_chatbot.chunker import StructuralChunker
+    from code_chatbot.ingestion.universal_ingestor import process_source
+    from code_chatbot.analysis.ast_analysis import ASTGraphBuilder
+    from code_chatbot.ingestion.indexer import Indexer
+    from code_chatbot.retrieval.graph_rag import GraphEnhancedRetriever
+    from code_chatbot.retrieval.rag import ChatEngine
+    from code_chatbot.ingestion.chunker import StructuralChunker
     from langchain_community.vectorstores import Chroma, FAISS
     from langchain_community.vectorstores.utils import filter_complex_metadata
     
@@ -147,7 +147,7 @@ def index_with_progress(
             progress_bar.progress(1.0)
             
         else:  # Chroma
-            from code_chatbot.indexer import get_chroma_client, reset_chroma_clients
+            from code_chatbot.core.db_connection import get_chroma_client, reset_chroma_clients
             
             # Reset client cache to avoid stale/corrupt connections
             reset_chroma_clients()

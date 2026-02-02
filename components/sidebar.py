@@ -117,7 +117,7 @@ def render_sidebar():
             # Show usage statistics if available
             if st.session_state.chat_engine:
                 try:
-                    from code_chatbot.rate_limiter import get_rate_limiter
+                    from code_chatbot.core.rate_limiter import get_rate_limiter
                     limiter = get_rate_limiter(provider)
                     stats = limiter.get_usage_stats()
                     

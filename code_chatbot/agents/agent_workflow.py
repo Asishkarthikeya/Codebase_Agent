@@ -5,7 +5,7 @@ from langchain_core.messages import BaseMessage
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from code_chatbot.rate_limiter import get_rate_limiter
+from code_chatbot.core.rate_limiter import get_rate_limiter
 
 # Define State
 class AgentState(TypedDict):
@@ -49,7 +49,7 @@ def create_agent_graph(llm, retriever, repo_name: str = "Codebase", repo_dir: st
         return result
 
     # 2. Import File System Tools
-    from code_chatbot.tools import get_filesystem_tools, get_call_graph_tools
+    from code_chatbot.agents.tools import get_filesystem_tools, get_call_graph_tools
     
     # 3. Combine Tools
     fs_tools = get_filesystem_tools(repo_dir)

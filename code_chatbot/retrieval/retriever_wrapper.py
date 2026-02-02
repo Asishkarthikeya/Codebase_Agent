@@ -5,7 +5,7 @@ from typing import List, Optional, Any
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.documents import Document
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
-from code_chatbot.reranker import Reranker
+from code_chatbot.retrieval.reranker import Reranker
 
 # Try to import MultiQueryRetriever - may not be available in all versions
 try:

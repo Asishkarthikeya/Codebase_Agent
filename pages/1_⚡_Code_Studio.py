@@ -12,92 +12,101 @@ st.set_page_config(
     page_title="Code Studio", 
     page_icon="⚡", 
     layout="wide", 
-    initial_sidebar_state="collapsed" # Hide standard sidebar
+    initial_sidebar_state="expanded" 
 )
 
 apply_custom_css()
 
 # --- State Management ---
-if "active_tab" not in st.session_state:
-    st.session_state.active_tab = "explorer"
-    
 if "processed_files" not in st.session_state or not st.session_state.processed_files:
-    # If accessed directly without processing, redirect home
     st.warning("⚠️ Please index a codebase first.")
     if st.button("Go Home"):
         st.switch_page("app.py")
     st.stop()
 
-# --- Layout ---
-# We use a 2-column layout: Side Panel (with Tabs) | Main Editor
-# Ratio: 3 : 7 - Narrower side panel for better proportion
-col_panel, col_editor = st.columns([3, 7])
-
-# --- Side Panel (Tabs) ---
-with col_panel:
-    # Use native Streamlit tabs for horizontal navigation
-    tab_explorer, tab_search, tab_chat, tab_generate = st.tabs(["📁 Explorer", "🔍 Search", "💬 Chat", "✨ Generate"])
+# --- Sidebar: Navigation & Explorer ---
+with st.sidebar:
+    # 1. View Settings
+    st.header("⚙️ View")
+    layout_mode = st.radio("Layout Mode", ["Tabs (Full Width)", "Split View"], horizontal=True)
     
-    with tab_explorer:
-        st.markdown("### 📁 Project Files")
-        render_file_tree(
-            st.session_state.get("indexed_files", []),
-            st.session_state.get("workspace_root", "")
-        )
-        
-        st.divider()
-        if st.button("🏠 Index New Codebase", use_container_width=True):
-            st.session_state.processed_files = False
-            st.session_state.chat_engine = None
-            st.session_state.indexed_files = None
-            st.session_state.workspace_root = None
-            st.session_state.selected_file = None
-            st.switch_page("app.py")
+    st.divider()
+    
+    # 2. File Explorer
+    render_file_tree(
+        st.session_state.get("indexed_files", []),
+        st.session_state.get("workspace_root", "")
+    )
+    
+    st.divider()
+    
+    # 3. Actions
+    if st.button("🏠 New Codebase", use_container_width=True):
+        st.session_state.processed_files = False
+        st.session_state.chat_engine = None
+        st.session_state.indexed_files = None
+        st.session_state.workspace_root = None
+        st.session_state.selected_file = None
+        st.switch_page("app.py")
 
-    with tab_search:
-        render_search_panel(st.session_state.get("indexed_files", []))
+# --- Main Workspace ---
 
+if layout_mode == "Tabs (Full Width)":
+    # TABBED LAYOUT (Default)
+    tab_chat, tab_code, tab_agent, tab_search = st.tabs(["💬 Chat", "📝 Code Editor", "✨ Agent", "🔍 Search"])
+    
     with tab_chat:
         chat_engine = st.session_state.get("chat_engine")
         if chat_engine:
             render_chat_panel(chat_engine)
         else:
-            st.error("Chat engine unavailable. Please index a codebase first.")
-
-    with tab_generate:
+            st.error("Chat engine unavailable.")
+            
+    with tab_code:
+        selected_file = st.session_state.get("selected_file")
+        if selected_file:
+            filename = os.path.basename(selected_file)
+            st.caption(f"Editing: {filename}")
+            render_code_viewer_simple(selected_file)
+        else:
+            st.info("👈 Select a file from the sidebar to view code.")
+            
+    with tab_agent:
         chat_engine = st.session_state.get("chat_engine")
         if chat_engine:
             render_generate_panel(chat_engine, st.session_state.get("indexed_files", []))
-        else:
-            st.error("Chat engine unavailable.")
+            
+    with tab_search:
+        render_search_panel(st.session_state.get("indexed_files", []))
 
-# --- Main Editor ---
-with col_editor:
-    # If a file is selected, show it. Otherwise show welcome/empty state.
-    selected_file = st.session_state.get("selected_file")
+else:
+    # SPLIT VIEW (Legacy)
+    split_ratio = st.slider("Panel Width (%)", 20, 80, 40, step=5)
+    panel_width = split_ratio / 100.0
+    editor_width = 1.0 - panel_width
     
-    if selected_file:
-        # We use a container to ensure height consistency
-        with st.container():
-            # Alignment Spacer: Matches the height of st.tabs headers (~50px)
-            st.markdown("<div style='height: 50px;'></div>", unsafe_allow_html=True)
+    col_panel, col_editor = st.columns([panel_width, editor_width])
+    
+    with col_panel:
+        tab_sub_chat, tab_sub_search, tab_sub_agent = st.tabs(["💬 Chat", "🔍 Search", "✨ Agent"])
+        
+        with tab_sub_chat:
+            chat_engine = st.session_state.get("chat_engine")
+            if chat_engine:
+                render_chat_panel(chat_engine)
+        
+        with tab_sub_search:
+            render_search_panel(st.session_state.get("indexed_files", []))
             
-            # Breadcrumbs / File Header
-            filename = os.path.basename(selected_file)
-            st.caption(f"Editing: {filename}")
-            
-            # Code Viewer
+        with tab_sub_agent:
+            chat_engine = st.session_state.get("chat_engine")
+            if chat_engine:
+                render_generate_panel(chat_engine, st.session_state.get("indexed_files", []))
+    
+    with col_editor:
+        selected_file = st.session_state.get("selected_file")
+        if selected_file:
+            st.caption(f"Editing: {os.path.basename(selected_file)}")
             render_code_viewer_simple(selected_file)
-            
-    else:
-        # Empty State
-        st.markdown(
-            """
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; opacity: 0.5;">
-                <h1>⚡ Code Studio</h1>
-                <p>Select a file from the explorer to view context.</p>
-                <p>Use the tabs on the left to switch between tools.</p>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
+        else:
+            st.info("👈 Select a file from the sidebar.")

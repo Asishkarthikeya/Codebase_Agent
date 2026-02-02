@@ -2,11 +2,11 @@ import streamlit as st
 import os
 import shutil
 import time
-from code_chatbot.universal_ingestor import process_source
-from code_chatbot.indexer import Indexer
-from code_chatbot.rag import ChatEngine
-from code_chatbot.ast_analysis import ASTGraphBuilder
-from code_chatbot.graph_rag import GraphEnhancedRetriever
+from code_chatbot.ingestion.universal_ingestor import process_source
+from code_chatbot.ingestion.indexer import Indexer
+from code_chatbot.retrieval.rag import ChatEngine
+from code_chatbot.analysis.ast_analysis import ASTGraphBuilder
+from code_chatbot.retrieval.graph_rag import GraphEnhancedRetriever
 import logging
 from dotenv import load_dotenv
 
@@ -83,7 +83,7 @@ if not st.session_state.processed_files:
                  st.error(f"Please configure {embedding_provider} API Key for embeddings in the sidebar.")
             else:
                 # Use the new progress-tracked indexer
-                from code_chatbot.indexing_progress import index_with_progress
+                from code_chatbot.ingestion.indexing_progress import index_with_progress
                 
                 chat_engine, success, repo_files, workspace_root = index_with_progress(
                     source_input=source_input,

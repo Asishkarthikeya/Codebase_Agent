@@ -6,7 +6,7 @@ Provides async methods to call MCP tools from other parts of the application.
 
 import logging
 from typing import List, Dict, Optional
-from code_chatbot.mcp_server import RefactorMCPServer, SearchResult, RefactorResult, RefactorSuggestion
+from code_chatbot.mcp.mcp_server import RefactorMCPServer, SearchResult, RefactorResult, RefactorSuggestion
 
 logger = logging.getLogger(__name__)
 

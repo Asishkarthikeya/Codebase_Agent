@@ -135,7 +135,7 @@ def render_search_mode():
         
         with st.spinner("Searching codebase..."):
             try:
-                from code_chatbot.mcp_client import MCPClient
+                from code_chatbot.mcp.mcp_client import MCPClient
                 
                 client = MCPClient(workspace_root=workspace)
                 results = client.search_code(
@@ -222,7 +222,7 @@ def render_refactor_mode():
             
             with st.spinner("Processing refactoring..."):
                 try:
-                    from code_chatbot.mcp_client import MCPClient
+                    from code_chatbot.mcp.mcp_client import MCPClient
                     
                     client = MCPClient(workspace_root=workspace)
                     result = client.refactor_code(
@@ -298,7 +298,7 @@ def render_refactor_mode():
         if st.button("Apply Refactoring", type="primary", use_container_width=True):
             with st.spinner("Processing..."):
                 try:
-                    from code_chatbot.mcp_client import MCPClient
+                    from code_chatbot.mcp.mcp_client import MCPClient
                     
                     client = MCPClient(workspace_root=workspace)
                     result = client.refactor_code(

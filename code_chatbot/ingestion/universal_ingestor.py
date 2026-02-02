@@ -135,8 +135,46 @@ class UniversalIngestor(DataManager):
     
     def download(self) -> bool:
         """Downloads/prepares the data."""
-        return self.delegate.download()
+        success = self.delegate.download()
+        if success:
+            self._clean_extracted_files()
+        return success
     
+    def _clean_extracted_files(self):
+        """Removes unnecessary files/directories from the extracted data."""
+        path = self.local_path
+        if not os.path.exists(path):
+            return
+            
+        logger.info(f"Cleaning execution artifacts from {path}")
+        
+        # Directories to remove completely
+        DIRS_TO_REMOVE = {'.git', '__pycache__', 'node_modules', '.ipynb_checkpoints', '.pytest_cache', '.dart_tool'}
+        
+        # Files to remove
+        FILES_TO_REMOVE = {'.DS_Store', 'Thumbs.db', '.gitignore', '.gitattributes'}
+        
+        for root, dirs, files in os.walk(path, topdown=False):
+            # Remove directories
+            for name in dirs:
+                if name in DIRS_TO_REMOVE:
+                    dir_path = os.path.join(root, name)
+                    try:
+                        shutil.rmtree(dir_path)
+                        logger.info(f"Removed directory: {dir_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove {dir_path}: {e}")
+            
+            # Remove files
+            for name in files:
+                if name in FILES_TO_REMOVE:
+                    file_path = os.path.join(root, name)
+                    try:
+                        os.remove(file_path)
+                        logger.info(f"Removed file: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove {file_path}: {e}")
+
     def walk(self, get_content: bool = True) -> Generator[Tuple[Any, Dict], None, None]:
         """Yields (content, metadata) tuples."""
         yield from self.delegate.walk(get_content)
@@ -177,7 +215,8 @@ class ZIPFileManager(DataManager):
         IGNORE_EXTENSIONS = {
             '.pyc', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.mp4', '.mov', 
             '.zip', '.tar', '.gz', '.pdf', '.exe', '.bin', '.pkl', '.npy', '.pt', '.pth',
-            '.lock', '.log', '.sqlite3', '.db', '.min.js', '.min.css', '.map'
+            '.lock', '.log', '.sqlite3', '.db', '.min.js', '.min.css', '.map', 
+            '.graphml', '.xml', '.toml'
         }
         # Files to ignore by exact name (lock files, etc.)
         IGNORE_FILES = {
@@ -235,7 +274,8 @@ class LocalDirectoryManager(DataManager):
         IGNORE_EXTENSIONS = {
             '.pyc', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.mp4', '.mov', 
             '.zip', '.tar', '.gz', '.pdf', '.exe', '.bin', '.pkl', '.npy', '.pt', '.pth',
-            '.lock', '.log', '.sqlite3', '.db', '.min.js', '.min.css', '.map'
+            '.lock', '.log', '.sqlite3', '.db', '.min.js', '.min.css', '.map', 
+            '.graphml', '.xml', '.toml'
         }
         # Files to ignore by exact name (lock files, etc.)
         IGNORE_FILES = {

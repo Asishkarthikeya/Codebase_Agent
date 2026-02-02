@@ -4,16 +4,16 @@ from pathlib import Path
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from code_chatbot.chunker import StructuralChunker
-from code_chatbot.merkle_tree import MerkleTree, ChangeSet
-from code_chatbot.path_obfuscator import PathObfuscator
-from code_chatbot.config import get_config
+from code_chatbot.ingestion.chunker import StructuralChunker
+from code_chatbot.ingestion.merkle_tree import MerkleTree, ChangeSet
+from code_chatbot.core.path_obfuscator import PathObfuscator
+from code_chatbot.core.config import get_config
 import shutil
 import logging
 
 logger = logging.getLogger(__name__)
 
-from code_chatbot.db_connection import (
+from code_chatbot.core.db_connection import (
     get_chroma_client, 
     reset_chroma_clients, 
     set_active_vector_db, 
@@ -421,5 +421,5 @@ class Indexer:
                 raise
 
 # Add incremental indexing methods to the Indexer class
-from code_chatbot.incremental_indexing import add_incremental_indexing_methods
+from code_chatbot.ingestion.incremental_indexing import add_incremental_indexing_methods
 Indexer = add_incremental_indexing_methods(Indexer)

@@ -43,7 +43,7 @@ def add_incremental_indexing_methods(indexer_class):
         if not self.config.indexing.enable_incremental_indexing:
             logger.info("Incremental indexing disabled, performing full index")
             # Fall back to full indexing
-            from code_chatbot.universal_ingestor import UniversalIngestor
+            from code_chatbot.ingestion.universal_ingestor import UniversalIngestor
             ingestor = UniversalIngestor(source_path)
             ingestor.download()
             
@@ -138,7 +138,7 @@ def add_incremental_indexing_methods(indexer_class):
             collection_name: Name of the collection
             vector_db_type: Type of vector database
         """
-        from code_chatbot.indexer import get_chroma_client
+        from code_chatbot.core.db_connection import get_chroma_client
         
         try:
             if vector_db_type == "chroma":
@@ -185,7 +185,7 @@ def add_incremental_indexing_methods(indexer_class):
         Returns:
             Dictionary with stats (total_chunks, unique_files, etc.)
         """
-        from code_chatbot.indexer import get_chroma_client
+        from code_chatbot.core.db_connection import get_chroma_client
         
         try:
             chroma_client = get_chroma_client(self.persist_directory)

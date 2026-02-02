@@ -24,12 +24,12 @@ async def index_codebase(request: IndexRequest):
     
     try:
         # Import required modules
-        from code_chatbot.universal_ingestor import process_source
-        from code_chatbot.ast_analysis import ASTGraphBuilder
-        from code_chatbot.indexer import Indexer
-        from code_chatbot.graph_rag import GraphEnhancedRetriever
-        from code_chatbot.rag import ChatEngine
-        from code_chatbot.chunker import StructuralChunker
+        from code_chatbot.ingestion.universal_ingestor import process_source
+        from code_chatbot.analysis.ast_analysis import ASTGraphBuilder
+        from code_chatbot.ingestion.indexer import Indexer
+        from code_chatbot.retrieval.graph_rag import GraphEnhancedRetriever
+        from code_chatbot.retrieval.rag import ChatEngine
+        from code_chatbot.ingestion.chunker import StructuralChunker
         from langchain_community.vectorstores import Chroma, FAISS
         from langchain_community.vectorstores.utils import filter_complex_metadata
         

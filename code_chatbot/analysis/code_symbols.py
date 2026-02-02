@@ -4,7 +4,7 @@ import logging
 from typing import List, Tuple, Optional
 from tree_sitter import Node
 
-from code_chatbot.chunker import StructuralChunker
+from code_chatbot.ingestion.chunker import StructuralChunker
 
 logger = logging.getLogger(__name__)
 

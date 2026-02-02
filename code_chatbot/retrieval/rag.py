@@ -7,8 +7,8 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.retrievers import BaseRetriever
 # Simplified implementation that works with current langchain version
 # We'll implement history-aware retrieval manually
-from code_chatbot.reranker import Reranker
-from code_chatbot.retriever_wrapper import build_enhanced_retriever
+from code_chatbot.retrieval.reranker import Reranker
+from code_chatbot.retrieval.retriever_wrapper import build_enhanced_retriever
 import os
 
 # Configure logging
@@ -77,7 +77,7 @@ class ChatEngine:
         self.llm_retriever = None
         if self.repo_files:
             try:
-                from code_chatbot.llm_retriever import LLMRetriever
+                from code_chatbot.retrieval.llm_retriever import LLMRetriever
                 from langchain.retrievers import EnsembleRetriever
                 
                 logger.info(f"Initializing LLMRetriever with {len(self.repo_files)} files.")
@@ -103,8 +103,8 @@ class ChatEngine:
         self.code_analyzer = None
         if self.use_agent:
             try:
-                from code_chatbot.agent_workflow import create_agent_graph
-                from code_chatbot.ast_analysis import EnhancedCodeAnalyzer
+                from code_chatbot.agents.agent_workflow import create_agent_graph
+                from code_chatbot.analysis.ast_analysis import EnhancedCodeAnalyzer
                 import os
                 
                 logger.info(f"Building Agentic Workflow Graph for {self.repo_dir}...")
@@ -239,7 +239,7 @@ class ChatEngine:
             # Rebuild agent if using agents
             if self.use_agent:
                 try:
-                    from code_chatbot.agent_workflow import create_agent_graph
+                    from code_chatbot.agents.agent_workflow import create_agent_graph
                     self.agent_executor = create_agent_graph(
                         llm=self.llm,
                         retriever=self.vector_retriever,
@@ -288,7 +288,7 @@ class ChatEngine:
                 
                 # Contextualize with history
                 # Use comprehensive system prompt for high-quality answers
-                from code_chatbot.prompts import get_prompt_for_provider
+                from code_chatbot.core.prompts import get_prompt_for_provider
                 sys_content = get_prompt_for_provider("system_agent", self.provider).format(repo_name=self.repo_name)
                 system_msg = SystemMessage(content=sys_content)
                 
@@ -320,13 +320,7 @@ class ChatEngine:
                         answer = raw_content
                     
                     # CLEANING: Remove hallucinated source chips
-                    import re
-                    # Remove the specific div block structure
-                    answer = re.sub(r'<div class="source-chip">.*?</div>\s*</div>', '', answer, flags=re.DOTALL)
-                    # Remove standalone chips if any remain
-                    answer = re.sub(r'<div class="source-chip">.*?</div>', '', answer, flags=re.DOTALL)
-                    # Clean up leading whitespace/newlines left behind
-                    answer = answer.strip()
+                    answer = self._clean_response(answer)
 
                     # Update history
                     self.chat_history.append(HumanMessage(content=question))
@@ -371,6 +365,21 @@ class ChatEngine:
             logger.error(f"Error during chat: {e}", exc_info=True)
             return f"Error: {str(e)}", []
     
+    def _clean_response(self, text: str) -> str:
+        """Clean response from hallucinated HTML/CSS artifacts."""
+        if not text:
+            return ""
+            
+        import re
+        # Remove the specific div block structure for source chips
+        clean_text = re.sub(r'<div class="source-chip">.*?</div>\s*</div>', '', text, flags=re.DOTALL)
+        # Remove standalone chips if any remain
+        clean_text = re.sub(r'<div class="source-chip">.*?</div>', '', clean_text, flags=re.DOTALL)
+        # Remove source-container divs
+        clean_text = re.sub(r'<div class="source-container">.*?</div>', '', clean_text, flags=re.DOTALL)
+        
+        return clean_text.strip()
+
     def _linear_chat(self, question: str) -> Tuple[str, List[dict]]:
         """Linear RAG fallback."""
         messages, sources, _ = self._prepare_chat_context(question)
@@ -381,7 +390,7 @@ class ChatEngine:
         # Get response from LLM
         try:
             response_msg = self.llm.invoke(messages)
-            answer = response_msg.content
+            answer = self._clean_response(response_msg.content)
         except Exception as e:
             # Check for Rate Limit in Linear Chat
             error_str = str(e)
@@ -460,7 +469,7 @@ class ChatEngine:
             })
         
         # Build prompt with history - use provider-specific prompt
-        from code_chatbot.prompts import get_prompt_for_provider
+        from code_chatbot.core.prompts import get_prompt_for_provider
         base_prompt = get_prompt_for_provider("linear_rag", self.provider)
         qa_system_prompt = base_prompt.format(
             repo_name=self.repo_name,
