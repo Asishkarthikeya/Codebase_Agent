@@ -46,7 +46,12 @@ with col_panel:
         )
         
         st.divider()
-        if st.button("🏠 Home", use_container_width=True):
+        if st.button("🏠 Index New Codebase", use_container_width=True):
+            st.session_state.processed_files = False
+            st.session_state.chat_engine = None
+            st.session_state.indexed_files = None
+            st.session_state.workspace_root = None
+            st.session_state.selected_file = None
             st.switch_page("app.py")
 
     with tab_search:
